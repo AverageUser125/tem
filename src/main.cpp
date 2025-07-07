@@ -1,5 +1,11 @@
-#include <iostream>
+#include "gameLogic.h"
 
-int main() {
-	std::cout << "Hello world";
+bool gameLogic() {
+	return true;
+}
+
+void closeGame() {
+}
+
+void startGame() {
 }
