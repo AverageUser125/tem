@@ -1,9 +1,11 @@
 #include <iostream>
+#include <chrono>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glad/errorReporting.h>
-#include <platform/input.h>
-#include <chrono>
+#include "platform/input.h"
+#include "platform/tools.h"
+#include "platform/window.h"
 #include "gameLogic.h"
 
 #ifdef _WIN32
@@ -68,13 +70,15 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 	} else {
 		return;
 	}
-
 	if (key >= GLFW_KEY_A && key <= GLFW_KEY_Z) {
 		int index = key - GLFW_KEY_A;
 		platform::internal::setButtonState(platform::Button::A + index, state);
 	} else if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9) {
 		int index = key - GLFW_KEY_0;
 		platform::internal::setButtonState(platform::Button::NR0 + index, state);
+	} else if (key >= GLFW_KEY_F1 && key <= GLFW_KEY_F12) {
+		int index = key - GLFW_KEY_F1;
+		platform::internal::setButtonState(platform::Button::F1 + index, state);
 	} else {
 		//special keys
 		//GLFW_KEY_SPACE, GLFW_KEY_ENTER, GLFW_KEY_ESCAPE, GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_LEFT, GLFW_KEY_RIGHT
@@ -150,6 +154,10 @@ void characterCallback(GLFWwindow* window, unsigned int codepoint) {
 #pragma region platform functions
 namespace platform
 {
+void setRelMousePosition(int x, int y) {
+	glfwSetCursorPos(wind, x, y);
+}
+
 bool isFullScreen() {
 	return fullScreen;
 }
@@ -217,8 +225,10 @@ int main() {
 #endif
 	int w = 800;
 	int h = 600;
-	glfwInit();
+	permaAssert(glfwInit());
+	
 	GLFWwindow* wind = glfwCreateWindow(w, h, "tem", nullptr, nullptr);
+	permaAssert(wind != nullptr);
 	glfwMakeContextCurrent(wind);
 	glfwSwapInterval(1);
 
@@ -229,7 +239,7 @@ int main() {
 	glfwSetCursorPosCallback(wind, cursorPositionCallback);
 	glfwSetCharCallback(wind, characterCallback);
 
-	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+	permaAssert(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress));
 	enableReportGlErrors();
 
 	startGame();
