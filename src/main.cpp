@@ -50,7 +50,7 @@ static size_t charIndexToByteOffset(const std::string& utf8line, int charIndex) 
 	return offset;
 }
 
-static void insertCodePointAtCursor(char32_t cp, std::string& command) {
+static void insertCodePointAtCursor(char32_t cp) {
 	ensureLineExists(o.cursorY);
 	std::string& line = o.lines[o.cursorY];
 	size_t byteOffset = charIndexToByteOffset(line, o.cursorX);
@@ -64,7 +64,7 @@ static void insertCodePointAtCursor(char32_t cp, std::string& command) {
 	}
 
 	byteOffset = charIndexToByteOffset(o.command, o.inputCursor);
-	command.insert(byteOffset, buf, bytesWritten);
+	o.command.insert(byteOffset, buf, bytesWritten);
 }
 
 static void deleteCharBeforeCursor() {
@@ -100,7 +100,7 @@ static void handleInput() {
 	for (uint32_t ch : typed) {
 		if (ch < 32)
 			continue;
-		insertCodePointAtCursor(ch, o.command);
+		insertCodePointAtCursor(ch);
 		incInpCur(1);
 	}
 	if (platform::isButtonTyped(platform::Button::Left) && o.inputCursor > 0) {
@@ -123,6 +123,10 @@ static void handleInput() {
 	}
 
 	if (platform::isButtonTyped(platform::Button::Enter)) {
+		// kinda hacky, but works. adds an extra empty line.
+		if (o.command.empty()) {
+			o.shell->getOutputBuffer().emplace_back('\n');
+		}
 		o.command += '\n';
 		processInput();
 		o.shell->write(o.command.c_str(), o.command.size());
