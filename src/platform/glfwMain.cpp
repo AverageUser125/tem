@@ -105,6 +105,14 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 			platform::internal::setButtonState(platform::Button::LeftShift, state);
 		} else if (key == GLFW_KEY_LEFT_ALT) {
 			platform::internal::setButtonState(platform::Button::LeftAlt, state);
+		} else if (key == GLFW_KEY_HOME) {
+			platform::internal::setButtonState(platform::Button::Home, state);
+		} else if (key == GLFW_KEY_END) {
+			platform::internal::setButtonState(platform::Button::End, state);
+		} else if (key == GLFW_KEY_DELETE) {
+			platform::internal::setButtonState(platform::Button::Delete, state);
+		} else if (key == GLFW_KEY_BACKSPACE) {
+			platform::internal::setButtonState(platform::Button::Backspace, state);
 		}
 	}
 };
@@ -256,7 +264,7 @@ int main() {
 		if (deltaTime > 1.f / 10) {
 			deltaTime = 1.f / 10;
 		}
-		if (!gameLogic()) {
+		if (!gameLogic(deltaTime)) {
 			break;
 		}
 

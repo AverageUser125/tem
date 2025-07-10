@@ -196,3 +196,16 @@ void render(const std::vector<std::string>& lines, int startLineIndex, float _fo
 		}
 	}
 }
+
+void renderCursor(int cursorX, int cursorY, float deltaTime) {
+	static float time = 0.0f;
+	time += deltaTime;
+
+	// Blink every ~1 second
+	float blink = fmod(time, 1.0f);
+	if (blink > 0.5f)
+		return;
+
+	// Use a solid block character ('█') as cursor symbol
+	drawChar((char)219, cursorX * CELL_WIDTH, (cursorY + 1) * CELL_HEIGHT);
+}

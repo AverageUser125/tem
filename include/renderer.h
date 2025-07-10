@@ -6,3 +6,4 @@
 
 void startRender(float fontSize);
 void render(const std::vector<std::string>& lines, int startLineIndex, float fontSize, int screenW, int screenH);
+void renderCursor(int cursorX, int cursorY, float deltaTime);
