@@ -2,26 +2,37 @@
 #include "processText.h"
 #include "utf8.h"
 #include "bitflags.hpp"
+#include <string_view>
 
-struct ProcState {
-  public:
-	enum Value: uint8_t {
-		None = 0,
-		SawESC = 1 << 0,
-		SawESCBracket = 1 << 1,
-		SawCR = 1 << 2,
-	};
-
-	private:
-	DEFINE_BITFLAGS(ProcState);
+enum class ProcState : uint8_t {
+	None,
+	SawESC,
+	SawESCBracket,
+	SawCR,
 };
 
 struct InputProcessorState {
 	std::string leftover;
+	std::string escParamBuffer;
 	ProcState state = ProcState::None;
 };
 
 static InputProcessorState processorState;
+
+static void handleEscapeCode() {
+	char type = processorState.escParamBuffer.pop_back();
+
+	switch (type) {
+	case 'm': {
+		break;
+	}
+	case 'H': {
+		break;
+	}
+	}
+
+	processorState.escParamBuffer.clear();
+}
 
 std::vector<char> processPartialInputSegment(const std::vector<char>& inputSegment) {
 	processorState.leftover.insert(processorState.leftover.end(), inputSegment.begin(), inputSegment.end());
@@ -32,61 +43,70 @@ std::vector<char> processPartialInputSegment(const std::vector<char>& inputSegme
 	while (i < processorState.leftover.size()) {
 		char c = processorState.leftover[i];
 
-		if ((int)processorState.state == (int)ProcState::None) {
-			if (c == '\033') {
-				processorState.state.set(ProcState::SawESC);
+		switch (processorState.state) {
+		case ProcState::None:
+			switch (c) {
+			case '\033': // ESC
+				processorState.state = ProcState::SawESC;
 				i++;
-			} else if (c == '\r') {
-				processorState.state.set(ProcState::SawCR);
+				break;
+
+			case '\r': // Carriage Return
+				processorState.state = ProcState::SawCR;
 				i++;
-			} else if (c == '\f') {
+				break;
+
+			case '\f': // Form Feed
 				o.lines.clear();
 				o.cursorX = 0;
 				o.cursorY = 0;
 				i++;
-			} else if (c == '\t') {
+				break;
+
+			case '\t': // Tab
 				output.insert(output.end(), {' ', ' ', ' ', ' '});
 				i++;
-			} else if (c == '\b') {
+				break;
+
+			case '\b': // Backspace
 				o.cursorX--;
-			} else {
+				break;
+
+			default:
 				output.push_back(c);
 				i++;
+				break;
 			}
-		} else if (processorState.state.has(ProcState::SawCR)) {
+			break;
+
+		case ProcState::SawCR:
 			if (c == '\n') {
 				output.push_back('\n'); // CRLF -> LF
-				processorState.state.reset();
 				i++;
 			} else {
 				output.push_back('\r'); // Lone CR
-				processorState.state.reset();
-				// o.cursorX = 0; defintion of carriage
-				// Reprocess current char
+										// reprocess current character
 			}
-		} else if (processorState.state.has(ProcState::SawESC)) {
-			if (c == '[') {
-				processorState.state.set(ProcState::SawESCBracket);
-				processorState.state.clear(ProcState::SawESC);
-				i++;
-			} else {
-				processorState.state.reset();
-				i++;
-			}
-		} else if (processorState.state.has(ProcState::SawESCBracket)) {
-			if ((unsigned char)c >= 0x40 && (unsigned char)c <= 0x7E) {
-				processorState.state.reset(); // End escape seq
-				i++;
-			} else {
-				i++; // Skip until terminator
-			}
-		} else {
-			processorState.state.reset();
-			i++;
-		}
+			processorState.state = ProcState::None;
+			break;
 
-		if (i == processorState.leftover.size() && processorState.state.has(ProcState::SawESCBracket)) {
-			break; // Leave partial escape in leftover
+		case ProcState::SawESC:
+			if (c == '[') {
+				processorState.state = ProcState::SawESCBracket;
+			} else {
+				processorState.state = ProcState::None;
+			}
+			i++;
+			break;
+
+		case ProcState::SawESCBracket:
+			processorState.escParamBuffer += c;
+			if ((unsigned char)c >= 0x40 && (unsigned char)c <= 0x7E) {
+				processorState.state = ProcState::None;
+				handleEscapeCode();
+			}
+			i++;
+			break;
 		}
 	}
 
@@ -136,7 +156,6 @@ void appendNewLines(const std::vector<char>& buf) {
 		o.cursorY = int(o.lines.size() - 1);
 	}
 }
-
 
 void processInput() {
 	if (o.flags.has(TermFlags::INPUT_LF_TO_CRLF)) {
