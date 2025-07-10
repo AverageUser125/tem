@@ -158,13 +158,14 @@ bool gameLogic(float deltaTime) {
 	if (totalLines > visibleLines)
 		scrollLineStart = totalLines - visibleLines;
 
-	render(lines, scrollLineStart, fontSize, screenW, screenH);
-	renderCursor(cursor.x, (cursor.y - scrollLineStart), deltaTime);
+	render(lines, scrollLineStart, screenW, screenH);
+	//renderCursor(cursor.x, (cursor.y - scrollLineStart), deltaTime);
 	return true;
 }
 
 void closeGame() {
 	delete shell;
+	stopRender();
 }
 
 void startGame() {

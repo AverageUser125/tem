@@ -1,211 +1,388 @@
 #include "renderer.h"
+
 #include <glad/glad.h>
 #include <stb_truetype.h>
-#include <cstdio>
-#include <cstdlib>
-#include <unordered_map>
-#include <platform/tools.h>
-#include <platform/window.h>
+#include <platform/tools.h> // permaAssert and defer macros
 #include "utf8.h"
 
-// ======= SETTINGS =======
-constexpr int ATLAS_SIZE = 512;
-constexpr int FIRST_CHAR = 32;
-constexpr int CHAR_COUNT = 96;
-constexpr float SDF_PADDING = 5.0f;
-constexpr float SDF_SPREAD = 8.0f;
-constexpr float SDF_SMOOTH = 0.25f;
-static float fontSize = 0;
+#include <unordered_map>
+#include <vector>
+#include <string>
+#include <cstring> // memset
+#include <functional>
 
-// monospace
-#define CELL_WIDTH fontSize
-#define CELL_HEIGHT fontSize
+struct Glyph {
+	float ax; // advance.x
+	float ay; // advance.y
+	float bw; // bitmap width
+	float bh; // bitmap height
+	float bl; // bitmap left
+	float bt; // bitmap top
+	float tx; // x offset in atlas
+};
 
-// ======= STRUCTS =======
-static stbtt_bakedchar glyphs[CHAR_COUNT];
+static constexpr int ATLAS_WIDTH = 1024;
+static constexpr int ATLAS_HEIGHT = 1024;
+
+static stbtt_fontinfo fontInfo;
+static unsigned char* ttfBuffer = nullptr;
+
+static unsigned char atlasBitmap[ATLAS_WIDTH * ATLAS_HEIGHT];
 static GLuint atlasTexture = 0;
-static GLuint shaderProgram = 0;
-static GLuint vao = 0, vbo = 0;
-static GLint uScreenSizeLoc, uTexLoc, uColorLoc;
+static float fontSizeGlobal = 0.0f;
+static float scale = 0.0f;
 
-// ======= SHADERS =======
-static const char* vertexSrc = R"(
+static std::unordered_map<uint32_t, Glyph> glyphs;
+
+static int ascent = 0;
+static int descent = 0;
+static int lineGap = 0;
+
+static GLuint vao = 0, vbo = 0, shaderProgram = 0;
+
+// Vertex data: x, y, u, v
+struct Vertex {
+	float x, y, u, v;
+};
+
+// We'll create a simple shader (you said no need to check compile errors, but I include minimal)
+static const char* vertexShaderSrc = R"glsl(
 #version 330 core
-layout(location = 0) in vec2 aPos;
-layout(location = 1) in vec2 aUV;
-out vec2 vUV;
-uniform vec2 uScreenSize;
+layout(location = 0) in vec2 in_pos;
+layout(location = 1) in vec2 in_uv;
+out vec2 frag_uv;
+uniform vec2 screenSize; // screen width, height in pixels
 void main() {
-	vec2 pos = aPos / uScreenSize * 2.0 - 1.0;
-	gl_Position = vec4(pos.x, -pos.y, 0.0, 1.0);
-	vUV = aUV;
+    vec2 pos = in_pos / screenSize * 2.0 - 1.0;
+    pos.y = -pos.y;
+    gl_Position = vec4(pos, 0.0, 1.0);
+    frag_uv = in_uv;
 }
-)";
+)glsl";
 
-static const char* fragmentSrc = R"(
+static const char* fragmentShaderSrc = R"glsl(
 #version 330 core
-#define SDF_SMOOTH 0.25
-in vec2 vUV;
-out vec4 FragColor;
-uniform sampler2D uTex;
-uniform vec3 uColor;
-
+in vec2 frag_uv;
+out vec4 out_color;
+uniform sampler2D tex;
+uniform vec4 textColor;
 void main() {
-	float distance = texture(uTex, vUV).r;
-	float alpha = smoothstep(0.5 - SDF_SMOOTH, 0.5 + SDF_SMOOTH, distance);
-	FragColor = vec4(uColor, alpha);
+    float distance = texture(tex, frag_uv).r;
+    float alpha = smoothstep(0.5 - 0.1, 0.5 + 0.1, distance);
+    out_color = vec4(textColor.rgb, textColor.a * alpha);
 }
-)";
+)glsl";
 
-// ======= HELPERS =======
-static GLuint compile(GLenum type, const char* src) {
+// Helpers
+
+static void checkGLError() { /* no-op as per your request */
+}
+
+static GLuint compileShader(GLenum type, const char* src) {
 	GLuint shader = glCreateShader(type);
 	glShaderSource(shader, 1, &src, nullptr);
 	glCompileShader(shader);
 	return shader;
 }
 
-static GLuint createShader() {
-	GLuint vs = compile(GL_VERTEX_SHADER, vertexSrc);
-	GLuint fs = compile(GL_FRAGMENT_SHADER, fragmentSrc);
-	GLuint prog = glCreateProgram();
-	glAttachShader(prog, vs);
-	glAttachShader(prog, fs);
-	glLinkProgram(prog);
+static GLuint createShaderProgram() {
+	GLuint vs = compileShader(GL_VERTEX_SHADER, vertexShaderSrc);
+	GLuint fs = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSrc);
+	GLuint program = glCreateProgram();
+	glAttachShader(program, vs);
+	glAttachShader(program, fs);
+	glLinkProgram(program);
+	// no error check as requested
 	glDeleteShader(vs);
 	glDeleteShader(fs);
-	return prog;
+	return program;
 }
 
-// ======= FONT INIT =======
-static void loadFont(const char* ttfPath) {
-	FILE* f = fopen(ttfPath, "rb");
-	permaAssertComment(f, "Missing font file");
-	fseek(f, 0, SEEK_END);
-	int size = ftell(f);
-	fseek(f, 0, SEEK_SET);
-	auto* ttfBuffer = new unsigned char[size];
-	fread(ttfBuffer, 1, size, f);
-	fclose(f);
-
-	constexpr int bakeW = ATLAS_SIZE, bakeH = ATLAS_SIZE;
-	auto* bitmap = new unsigned char[bakeW * bakeH];
-	permaAssertComment((stbtt_BakeFontBitmap(ttfBuffer, 0, fontSize, bitmap, bakeW, bakeH, FIRST_CHAR,
-											 CHAR_COUNT,
-											(stbtt_bakedchar*)glyphs) > 0), "Failed to bake font");
-
-	glGenTextures(1, &atlasTexture);
-	glBindTexture(GL_TEXTURE_2D, atlasTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, bakeW, bakeH, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	delete[] bitmap;
-	delete[] ttfBuffer;
-}
-
-// ======= INIT =======
-void startRender(float _fontSize) {
-	fontSize = _fontSize;
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	loadFont(RESOURCES_PATH "FiraCode-Regular.ttf");
-	shaderProgram = createShader();
-
-	uScreenSizeLoc = glGetUniformLocation(shaderProgram, "uScreenSize");
-	uTexLoc = glGetUniformLocation(shaderProgram, "uTex");
-	uColorLoc = glGetUniformLocation(shaderProgram, "uColor");
-
+static void initGLResources() {
 	glGenVertexArrays(1, &vao);
 	glGenBuffers(1, &vbo);
+	shaderProgram = createShaderProgram();
 }
 
-// ======= RENDER TEXT =======
-static void drawChar(char c, float x, float y) {
-	if (c < FIRST_CHAR || c >= FIRST_CHAR + CHAR_COUNT)
-		c = '?';
-	stbtt_bakedchar& g = glyphs[c - FIRST_CHAR];
-
-    float x0 = x + g.xoff;
-	float y0 = y + g.yoff;
-	float x1 = x0 + (g.x1 - g.x0);
-	float y1 = y0 + (g.y1 - g.y0);
-
-	// Texture coordinates (normalized atlas UV)
-	float s0 = g.x0 / (float)ATLAS_SIZE; // assuming 512x512 atlas
-	float t0 = g.y0 / (float)ATLAS_SIZE;
-	float s1 = g.x1 / (float)ATLAS_SIZE;
-	float t1 = g.y1 / (float)ATLAS_SIZE;
-
-	// Vertices: x, y, s, t (6 vertices for two triangles)
-	float vertices[6][4] = {
-		{x0, y0, s0, t0}, {x1, y0, s1, t0}, {x1, y1, s1, t1}, {x0, y0, s0, t0}, {x1, y1, s1, t1}, {x0, y1, s0, t1},
-	};
-
-	glBindTexture(GL_TEXTURE_2D, atlasTexture);
-
-	glBindVertexArray(vao);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-
-	glDrawArrays(GL_TRIANGLES, 0, 6);
+static void freeGLResources() {
+	glDeleteBuffers(1, &vbo);
+	glDeleteVertexArrays(1, &vao);
+	glDeleteProgram(shaderProgram);
 }
 
-// ======= MAIN RENDER =======
-void render(const std::vector<std::string>& lines, int startLineIndex, float _fontSize, int screenW, int screenH) {
-	fontSize = _fontSize;
-	glUseProgram(shaderProgram);
+// Packs glyphs in atlas starting from x=0, y=0 left to right, wrapping lines
+static void buildAtlas(const std::vector<uint32_t>& codepoints) {
+	memset(atlasBitmap, 0, sizeof(atlasBitmap));
+	int x = 0, y = 0, rowHeight = 0;
 
-	glUniform2f(uScreenSizeLoc, (float)screenW, (float)screenH);
-	glUniform3f(uColorLoc, 1.0f, 1.0f, 1.0f);
-	glUniform1i(uTexLoc, 0);
+	glyphs.clear();
 
-	int maxRows = screenH / CELL_HEIGHT;
+	for (uint32_t cp : codepoints) {
+		int glyphIndex = stbtt_FindGlyphIndex(&fontInfo, cp);
+		permaAssertComment(glyphIndex != 0, "Glyph must exist");
 
-	for (int i = 0; i < maxRows; ++i) {
-		int lineIndex = startLineIndex + i;
-		float y = (i + 1) * CELL_HEIGHT;
-		float x = 0;
+		int advance, lsb;
+		stbtt_GetGlyphHMetrics(&fontInfo, glyphIndex, &advance, &lsb);
 
-		std::string_view line;
-		if (lineIndex < (int)lines.size())
-			line = lines[lineIndex];
-		else
-			line = ""; // Clear empty rows
+		int glyphW, glyphH, xoff, yoff;
+		unsigned char* bitmap =
+			stbtt_GetGlyphBitmap(&fontInfo, scale, scale, glyphIndex, &glyphW, &glyphH, &xoff, &yoff);
 
-		const char* p = line.data();
-		const char* end = p + line.size();
-
-		while (p < end) {
-			uint32_t cp;
-			int len = decode_utf8(p, &cp);
-			if (len > 0 && cp < 128) {
-				drawChar((char)cp, x, y);
-				p += len;
-			} else {
-				drawChar('?', x, y);
-				++p;
-			}
-			x += CELL_WIDTH;
+		if (x + glyphW >= ATLAS_WIDTH) {
+			x = 0;
+			y += rowHeight;
+			rowHeight = 0;
 		}
+
+		permaAssert(y + glyphH < ATLAS_HEIGHT);
+
+		// copy bitmap to atlas
+		for (int i = 0; i < glyphH; i++) {
+			memcpy(atlasBitmap + (y + i) * ATLAS_WIDTH + x, bitmap + i * glyphW, glyphW);
+		}
+
+		// store glyph info
+		Glyph g;
+		g.ax = advance * scale;
+		g.ay = 0;
+		g.bw = (float)glyphW;
+		g.bh = (float)glyphH;
+		g.bl = (float)xoff;
+		g.bt = (float)yoff;
+		g.tx = (float)x / ATLAS_WIDTH;
+
+		glyphs[cp] = g;
+
+		x += glyphW + 1;
+		if (glyphH > rowHeight)
+			rowHeight = glyphH;
+
+		stbtt_FreeBitmap(bitmap, nullptr);
 	}
 }
 
-void renderCursor(int cursorX, int cursorY, float deltaTime) {
-	static float time = 0.0f;
-	time += deltaTime;
+static std::vector<uint32_t> extractCodepoints(const std::vector<std::string>& lines, int startLineIndex) {
+	std::unordered_map<uint32_t, bool> seen;
+	std::vector<uint32_t> cps;
 
-	// Blink every ~1 second
-	float blink = fmod(time, 1.0f);
-	if (blink > 0.5f)
+	for (size_t i = startLineIndex; i < lines.size(); i++) {
+		const char* s = lines[i].c_str();
+		const char* end = s + lines[i].size();
+
+		while (s < end) {
+			uint32_t cp = 0;
+			int len = decode_utf8(s, &cp);
+			if (len <= 0)
+				break; // invalid utf8 - stop decoding
+			s += len;
+			if (seen.find(cp) == seen.end()) {
+				seen[cp] = true;
+				cps.push_back(cp);
+			}
+		}
+	}
+	return cps;
+}
+
+static void uploadAtlasTexture() {
+	if (atlasTexture == 0)
+		glGenTextures(1, &atlasTexture);
+
+	glBindTexture(GL_TEXTURE_2D, atlasTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, ATLAS_WIDTH, ATLAS_HEIGHT, 0, GL_RED, GL_UNSIGNED_BYTE, atlasBitmap);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+}
+
+// Internal constant from startRender
+static float charWidth = 0;
+static float charHeight = 0;
+
+void startRender(float fontSize) {
+	fontSizeGlobal = fontSize;
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	FILE* f = fopen(RESOURCES_PATH "FiraCode-Regular.ttf", "rb");
+	permaAssertComment(f, "Failed to open font file");
+	fseek(f, 0, SEEK_END);
+	size_t size = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	ttfBuffer = new unsigned char[size];
+	fread(ttfBuffer, 1, size, f);
+	fclose(f);
+
+	permaAssertComment(stbtt_InitFont(&fontInfo, ttfBuffer, 0), "Failed to init font");
+	scale = stbtt_ScaleForPixelHeight(&fontInfo, fontSizeGlobal);
+
+	stbtt_GetFontVMetrics(&fontInfo, &ascent, &descent, &lineGap);
+
+	memset(atlasBitmap, 0, sizeof(atlasBitmap));
+	glyphs.clear();
+	initGLResources();
+
+	int glyphIndexSpace = stbtt_FindGlyphIndex(&fontInfo, ' ');
+	int advanceSpace, lsb;
+	stbtt_GetGlyphHMetrics(&fontInfo, glyphIndexSpace, &advanceSpace, &lsb);
+	charWidth = advanceSpace * scale;
+	charHeight = (float)(ascent - descent + lineGap) * scale;
+}
+
+void render(const std::vector<std::string>& lines, int startLineIndex, int screenW, int screenH) {
+	permaAssert(fontSizeGlobal > 0.0f);
+	if (lines.empty() || startLineIndex >= (int)lines.size())
 		return;
 
-	// Use a solid block character ('█') as cursor symbol
-	drawChar((char)219, cursorX * CELL_WIDTH, (cursorY + 1) * CELL_HEIGHT);
+	auto cps = extractCodepoints(lines, startLineIndex);
+	buildAtlas(cps);
+	uploadAtlasTexture();
+
+	glUseProgram(shaderProgram);
+
+	GLint screenSizeLoc = glGetUniformLocation(shaderProgram, "screenSize");
+	glUniform2f(screenSizeLoc, float(screenW), float(screenH));
+	GLint textColorLoc = glGetUniformLocation(shaderProgram, "textColor");
+	glUniform4f(textColorLoc, 1, 1, 1, 1);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, atlasTexture);
+	GLint texLoc = glGetUniformLocation(shaderProgram, "tex");
+	glUniform1i(texLoc, 0);
+
+	glBindVertexArray(vao);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, x));
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, u));
+
+	std::vector<Vertex> vertices;
+	// Calculate baseline Y for each line (distance from top)
+	float lineHeight = (ascent - descent + lineGap) * scale;
+	float yStart = 0; // top of screen, y grows downward
+
+	for (int lineIndex = startLineIndex; lineIndex < (int)lines.size(); ++lineIndex) {
+		const char* p = lines[lineIndex].c_str();
+		const char* end = p + lines[lineIndex].size();
+
+		float penX = 0;
+
+		// Baseline Y for current line
+		float baselineY = yStart + ascent * scale + (lineIndex - startLineIndex) * lineHeight;
+
+		while (p < end) {
+			uint32_t cp = 0;
+			int len = decode_utf8(p, &cp);
+			if (len <= 0)
+				break;
+			p += len;
+			if (cp == '\r')
+				continue;
+
+			auto it = glyphs.find(cp);
+			if (it == glyphs.end())
+				continue;
+			const Glyph& g = it->second;
+
+			float x0 = penX + g.bl;
+
+			float y0 = baselineY + g.bt;
+
+			float x1 = x0 + g.bw;
+			float y1 = y0 + g.bh;
+
+			float tx0 = g.tx;
+			float tx1 = tx0 + g.bw / ATLAS_WIDTH;
+			float ty0 = 0.0f;
+			float ty1 = g.bh / ATLAS_HEIGHT;
+
+			vertices.push_back({x0, y0, tx0, ty0});
+			vertices.push_back({x1, y0, tx1, ty0});
+			vertices.push_back({x0, y1, tx0, ty1});
+
+			vertices.push_back({x1, y0, tx1, ty0});
+			vertices.push_back({x1, y1, tx1, ty1});
+			vertices.push_back({x0, y1, tx0, ty1});
+
+			penX += g.ax;
+		}
+	}
+
+	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_DYNAMIC_DRAW);
+	glDrawArrays(GL_TRIANGLES, 0, (GLsizei)vertices.size());
+
+	glBindVertexArray(0);
+	glUseProgram(0);
+}
+
+
+void renderCursor(int cursorX, int cursorY, float deltaTime) {
+	if (fontSizeGlobal <= 0)
+		return;
+
+	// Simple blinking cursor using sin
+	float alpha = (sin(deltaTime * 10.0f) * 0.5f + 0.5f);
+
+	glUseProgram(shaderProgram);
+	GLint screenSizeLoc = glGetUniformLocation(shaderProgram, "screenSize");
+	GLint textColorLoc = glGetUniformLocation(shaderProgram, "textColor");
+	GLint texLoc = glGetUniformLocation(shaderProgram, "tex");
+
+	// Bind empty white texture or just use solid color by disabling texturing
+	glUniform2f(screenSizeLoc, 800, 600); // or pass actual screen size if you store it globally
+	glUniform4f(textColorLoc, 1, 1, 1, alpha);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, atlasTexture);
+	glUniform1i(texLoc, 0);
+
+	glBindVertexArray(vao);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
+	// Setup vertex attrib pointers
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, x));
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, u));
+
+	// Render a solid block at cursor position
+	float x0 = cursorX * charWidth;
+	float y0 = cursorY * charHeight;
+	float x1 = x0 + charWidth;
+	float y1 = y0 + charHeight;
+
+	float tx0 = 0;
+	float ty0 = 0;
+	float tx1 = 1;
+	float ty1 = 1;
+
+	Vertex verts[6] = {
+		{x0, y0, tx0, ty0}, {x1, y0, tx1, ty0}, {x0, y1, tx0, ty1},
+
+		{x1, y0, tx1, ty0}, {x1, y1, tx1, ty1}, {x0, y1, tx0, ty1},
+	};
+
+	glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_DYNAMIC_DRAW);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	glBindVertexArray(0);
+	glUseProgram(0);
+}
+
+void stopRender() {
+	freeGLResources();
+	if (ttfBuffer) {
+		delete[] ttfBuffer;
+		ttfBuffer = nullptr;
+	}
+	if (atlasTexture) {
+		glDeleteTextures(1, &atlasTexture);
+		atlasTexture = 0;
+	}
+	glyphs.clear();
+	fontSizeGlobal = 0.0f;
 }
