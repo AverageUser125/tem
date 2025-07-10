@@ -25,6 +25,6 @@ struct Process {
 
 // cmd = shell command (e.g., "cmd.exe" or "bash")
 // The returned Process* must be deleted by the user
-Process* launch(std::string_view cmd);
+Process* launch();
 
 } // namespace platform

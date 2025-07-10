@@ -61,7 +61,6 @@ static float fontSizeGlobal = 0.0f;
 static float scale = 0.0f;
 
 static std::unordered_map<uint32_t, Glyph> glyphs;
-static std::unordered_set<uint32_t> cachedCodepoints;
 
 static int ascent = 0;
 static int descent = 0;
@@ -94,18 +93,6 @@ static GLuint createShaderProgram() {
 	glDeleteShader(vs);
 	glDeleteShader(fs);
 	return program;
-}
-
-static void initGLResources() {
-	glGenVertexArrays(1, &vao);
-	glGenBuffers(1, &vbo);
-	shaderProgram = createShaderProgram();
-}
-
-static void freeGLResources() {
-	glDeleteBuffers(1, &vbo);
-	glDeleteVertexArrays(1, &vao);
-	glDeleteProgram(shaderProgram);
 }
 
 // Build or update atlas for the given new codepoints (append-only)
@@ -259,8 +246,9 @@ void startRender(float fontSize) {
 
 	memset(atlasBitmap, 0, sizeof(atlasBitmap));
 	glyphs.clear();
-	cachedCodepoints.clear();
-	initGLResources();
+	glGenVertexArrays(1, &vao);
+	glGenBuffers(1, &vbo);
+	shaderProgram = createShaderProgram();
 
 	// Prebake ASCII range 32..126 at start
 	std::vector<uint32_t> asciiRange;
@@ -271,10 +259,6 @@ void startRender(float fontSize) {
 	buildAtlasIncremental(asciiRange);
 	uploadAtlasTexture();
 
-	// Update cached codepoints
-	for (uint32_t cp : asciiRange)
-		cachedCodepoints.insert(cp);
-
 	int glyphIndexSpace = stbtt_FindGlyphIndex(&fontInfo, ' ');
 	int advanceSpace, lsb;
 	stbtt_GetGlyphHMetrics(&fontInfo, glyphIndexSpace, &advanceSpace, &lsb);
@@ -283,6 +267,8 @@ void startRender(float fontSize) {
 }
 
 void render(const std::vector<std::string>& lines, int startLineIndex, int screenW, int screenH) {
+	glViewport(0, 0, screenW, screenH);
+	glClear(GL_COLOR_BUFFER_BIT);
 	permaAssert(fontSizeGlobal > 0.0f);
 	if (lines.empty() || startLineIndex >= (int)lines.size())
 		return;
@@ -328,13 +314,10 @@ void render(const std::vector<std::string>& lines, int startLineIndex, int scree
 				continue;
 
 			if (glyphs.find(cp) == glyphs.end()) {
-				int glyphIndex = stbtt_FindGlyphIndex(&fontInfo, cp);
-				if (glyphIndex == 0) {
-					continue;
-				}
+				glyphs.emplace(cp, glyphs.at('?'));
 			}
 
-			const Glyph& g = glyphs[cp];
+			const Glyph& g = glyphs.at(cp);
 
 			float x0 = penX + g.bl;
 			float y0 = baselineY + g.bt;
@@ -438,7 +421,9 @@ void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int sc
 }
 
 void stopRender() {
-	freeGLResources();
+	glDeleteBuffers(1, &vbo);
+	glDeleteVertexArrays(1, &vao);
+	glDeleteProgram(shaderProgram);
 	if (ttfBuffer) {
 		delete[] ttfBuffer;
 		ttfBuffer = nullptr;

@@ -3,6 +3,7 @@
 #include <thread>
 #include <string_view>
 #include <platform/tools.h>
+#include <stdexcept>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -200,11 +201,11 @@ class PosixProcess : public Process {
 
 #endif
 
-Process* launch(std::string_view cmd) {
+Process* launch() {
 #ifdef _WIN32
-	return new WinProcess(cmd);
+	return new WinProcess("cmd.exe /Q /K");
 #else
-	return new PosixProcess(cmd);
+	return new PosixProcess("/bin/bash");
 #endif
 }
 

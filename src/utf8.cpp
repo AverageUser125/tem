@@ -54,3 +54,16 @@ int encode_utf8(uint32_t codepoint, char* out) {
 	// Invalid codepoint
 	return 0;
 }
+
+int get_length(std::string_view sv) {
+	int i = 0;
+	uint32_t codepoint;
+	for (i = 0; i < sv.size(); i++) {
+		int len = decode_utf8(sv.data() + i, &codepoint);
+		if (len == 0) {
+			return -1;
+		}
+		i += len;
+	}
+	return i;
+}
