@@ -44,6 +44,11 @@ std::vector<char> processPartialInputSegment(const std::vector<char>& inputSegme
 				o.cursorX = 0;
 				o.cursorY = 0;
 				i++;
+			} else if (c == '\t') {
+				output.insert(output.end(), {' ', ' ', ' ', ' '});
+				i++;
+			} else if (c == '\b') {
+				o.cursorX--;
 			} else {
 				output.push_back(c);
 				i++;

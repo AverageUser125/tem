@@ -174,7 +174,7 @@ void startGame() {
 	o.shell = platform::launch();
 	startRender(o.fontSize);
 
-	o.flags = TermFlags::INPUT_ECHO | TermFlags::OUTPUT_CRLF_TO_LF | TermFlags::OUTPUT_ESCAPE_CODES;
+	o.flags = TermFlags::INPUT_ECHO | TermFlags::OUTPUT_ESCAPE_CODES;
 	#ifdef _WIN32
 	o.flags |= TermFlags::INPUT_LF_TO_CRLF;
 	#else 
