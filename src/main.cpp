@@ -62,16 +62,34 @@ static void ensureLineExists(int y) {
 		lines.emplace_back();
 }
 
-static void insertCharAtCursor(char ch) {
+static size_t charIndexToByteOffset(const std::string& utf8line, int charIndex) {
+	size_t offset = 0;
+	int count = 0;
+	const char* data = utf8line.data();
+	size_t size = utf8line.size();
+
+	while (offset < size && count < charIndex) {
+		uint32_t cp;
+		int len = decode_utf8(data + offset, &cp);
+		if (len <= 0)
+			break; // invalid UTF-8, stop early
+		offset += len;
+		count++;
+	}
+	return offset;
+}
+
+static void insertCodePointAtCursor(char32_t cp, std::string& command) {
 	ensureLineExists(cursor.y);
 	std::string& line = lines[cursor.y];
-	if ((int)line.size() < cursor.x)
-		line.resize(cursor.x, ' ');
-	if (cursor.x == (int)line.size()) {
-		line.push_back(ch);
-	} else {
-		line.insert(line.begin() + cursor.x, ch);
-	}
+	size_t byteOffset = charIndexToByteOffset(line, cursor.x);
+
+	// encode cp to UTF-8 bytes using your encode_utf8 function
+	char buf[4];
+	int bytesWritten = encode_utf8(cp, buf);
+
+	line.insert(byteOffset, buf, bytesWritten);
+	command.insert(command.size(), buf, bytesWritten);
 	cursor.x++;
 }
 
@@ -79,27 +97,37 @@ static void deleteCharBeforeCursor() {
 	if (cursor.x > 0) {
 		ensureLineExists(cursor.y);
 		std::string& line = lines[cursor.y];
-		if (cursor.x <= (int)line.size()) {
-			line.erase(line.begin() + cursor.x - 1);
-			cursor.x--;
-		}
-	}
-}
 
-static void deleteCharAtCursor() {
-	ensureLineExists(cursor.y);
-	std::string& line = lines[cursor.y];
-	if (cursor.x < (int)line.size()) {
-		line.erase(line.begin() + cursor.x);
+		size_t byteOffset = charIndexToByteOffset(line, cursor.x);
+		size_t prevByteOffset = 0;
+		// find byte offset of previous char:
+		{
+			size_t offset = 0;
+			int count = 0;
+			const char* data = line.data();
+			while (offset < line.size() && count < cursor.x - 1) {
+				uint32_t cp;
+				int len = decode_utf8(data + offset, &cp);
+				if (len <= 0)
+					break;
+				offset += len;
+				count++;
+			}
+			prevByteOffset = offset;
+		}
+
+		line.erase(prevByteOffset, byteOffset - prevByteOffset);
+		cursor.x--;
 	}
 }
 
 static void handleInput() {
 	static std::string command;
-	const std::string& typed = platform::getTypedInput();
-	for (char ch : typed) {
-		insertCharAtCursor(ch);
-		command += ch;
+	const std::u32string& typed = platform::getTypedInput();
+	for (uint32_t ch : typed) {
+		if (ch < 32)
+			continue;
+		insertCodePointAtCursor(ch, command);
 	}
 	if (platform::isButtonPressed(platform::Button::Left) && cursor.x > 0)
 		cursor.x--;
@@ -123,16 +151,20 @@ static void handleInput() {
 	if (platform::isButtonPressed(platform::Button::End) && cursor.y < (int)lines.size())
 		cursor.x = (int)lines[cursor.y].size();
 
-	if (platform::isButtonPressed(platform::Button::Backspace))
-		deleteCharBeforeCursor();
-
-	if (platform::isButtonPressed(platform::Button::Delete))
-		deleteCharAtCursor();
+	// TODO: make it remove from command
+	if (platform::isButtonPressed(platform::Button::Backspace)) {
+		//deleteCharBeforeCursor();
+	}
 
 	if (platform::isButtonPressed(platform::Button::Enter)) {
-		shell->write(command.c_str(), command.size());
+		if (!command.empty()) {
+			shell->write(command.c_str(), command.size());
+		} else {
+			insertCodePointAtCursor('\n', command);
+		}
 		command.clear();
 		shell->write("\r\n", 2);
+		
 		cursor.x = 0;
 		cursor.y++;
 	}
@@ -159,7 +191,7 @@ bool gameLogic(float deltaTime) {
 		scrollLineStart = totalLines - visibleLines;
 
 	render(lines, scrollLineStart, screenW, screenH);
-	//renderCursor(cursor.x, (cursor.y - scrollLineStart), deltaTime);
+	renderCursor(cursor.x, (cursor.y - scrollLineStart), deltaTime, screenW, screenH);
 	return true;
 }
 

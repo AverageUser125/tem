@@ -1,11 +1,15 @@
 #include "platform/input.h"
-
+#include "utf8.h"
+#include <string_view>
+namespace
+{
 platform::Button keyBoard[platform::Button::BUTTONS_COUNT];
 platform::Button leftMouse;
 platform::Button rightMouse;
 
 platform::Controller controllerButtons;
-std::string typedInput;
+std::u32string typedInput;
+}
 
 platform::Button* platform::getAllButtons() {
 	return keyBoard;
@@ -79,7 +83,7 @@ const platform::Controller& platform::getControllerButtons() {
 	return controllerButtons;
 }
 
-const std::string& platform::getTypedInput() {
+const std::u32string& platform::getTypedInput() {
 	return typedInput;
 }
 
@@ -146,7 +150,7 @@ void platform::internal::resetInputsToZero() {
 	controllerButtons.setAllToZero();
 }
 
-void platform::internal::addToTypedInput(char c) {
+void platform::internal::addToTypedInput(uint32_t c) {
 	typedInput += c;
 }
 

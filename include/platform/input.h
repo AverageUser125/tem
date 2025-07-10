@@ -1,7 +1,6 @@
 #pragma once
 #include <GLFW/glfw3.h>
 #include <string>
-
 namespace platform
 {
 struct Button {
@@ -220,7 +219,7 @@ const Button& getRMouseButton();
 
 const Controller& getControllerButtons();
 
-const std::string& getTypedInput();
+const std::u32string& getTypedInput();
 
 namespace internal
 {
@@ -279,7 +278,7 @@ inline void updateButton(Button& b, float deltaTime) {
 void updateAllButtons(float deltaTime);
 void resetInputsToZero();
 
-void addToTypedInput(char c);
+void addToTypedInput(uint32_t c);
 void resetTypedInput();
 
 }; // namespace internal

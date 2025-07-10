@@ -43,14 +43,14 @@ out vec4 out_color;
 uniform sampler2D tex;
 uniform vec4 textColor;
 void main() {
-    float distance = texture(tex, frag_uv).r;
-    float alpha = smoothstep(0.5 - 0.1, 0.5 + 0.1, distance);
+    float alpha = texture(tex, frag_uv).r;
     out_color = vec4(textColor.rgb, textColor.a * alpha);
 }
 )glsl";
 
 static constexpr int ATLAS_WIDTH = 1024;
 static constexpr int ATLAS_HEIGHT = 1024;
+static constexpr int CURSOR_CODEPOINT = 0x2588;
 
 static stbtt_fontinfo fontInfo;
 static unsigned char* ttfBuffer = nullptr;
@@ -266,6 +266,7 @@ void startRender(float fontSize) {
 	std::vector<uint32_t> asciiRange;
 	for (uint32_t cp = 32; cp <= 126; cp++)
 		asciiRange.push_back(cp);
+	asciiRange.push_back(CURSOR_CODEPOINT);
 
 	buildAtlasIncremental(asciiRange);
 	uploadAtlasTexture();
@@ -365,51 +366,69 @@ void render(const std::vector<std::string>& lines, int startLineIndex, int scree
 	glUseProgram(0);
 }
 
-void renderCursor(int cursorX, int cursorY, float deltaTime) {
+void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int screenH) {
 	if (fontSizeGlobal <= 0)
 		return;
 
-	// Simple blinking cursor using sin
-	float alpha = (sin(deltaTime * 10.0f) * 0.5f + 0.5f);
+	static float time = 0.0f;
+	time += deltaTime;
+
+	// Blink on/off every 0.5s
+	bool visible = fmod(time, 1.0f) < 0.5f;
+	if (!visible)
+		return;
+
+	auto it = glyphs.find(CURSOR_CODEPOINT);
+	if (it == glyphs.end())
+		return;
+
+	const Glyph& g = it->second;
+
+	float cursorWidth = 1.0f;
+	float offsetX = 0.2f; // Shift left or right by modifying this value (pixels)
+
+	float lineHeight = (ascent - descent + lineGap) * scale;
+	float lineCenterY = cursorY * lineHeight + lineHeight * 0.5f;
+
+	float glyphHeight = g.bh;
+	float y0 = lineCenterY - glyphHeight * 0.5f;
+	float y1 = y0 + glyphHeight;
+
+	float x0 = cursorX * charWidth + offsetX;
+	float x1 = x0 + cursorWidth;
+
+	// Texture coords for thin vertical slice of full block glyph
+	float tx0 = g.tx;
+	float tx1 = tx0 + (cursorWidth / g.bw) * (g.bw / ATLAS_WIDTH);
+
+	float ty0 = 0.0f;
+	float ty1 = g.bh / ATLAS_HEIGHT;
+
+	Vertex verts[6] = {
+		{x0, y0, tx0, ty0}, {x1, y0, tx1, ty0}, {x0, y1, tx0, ty1},
+		{x1, y0, tx1, ty0}, {x1, y1, tx1, ty1}, {x0, y1, tx0, ty1},
+	};
 
 	glUseProgram(shaderProgram);
+
 	GLint screenSizeLoc = glGetUniformLocation(shaderProgram, "screenSize");
 	GLint textColorLoc = glGetUniformLocation(shaderProgram, "textColor");
 	GLint texLoc = glGetUniformLocation(shaderProgram, "tex");
 
-	// Bind empty white texture or just use solid color by disabling texturing
-	glUniform2f(screenSizeLoc, 800, 600); // or pass actual screen size if you store it globally
-	glUniform4f(textColorLoc, 1, 1, 1, alpha);
+	glUniform2f(screenSizeLoc, float(screenW), float(screenH));
+	glUniform4f(textColorLoc, 1, 1, 1, 1);
+	glUniform1i(texLoc, 0);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, atlasTexture);
-	glUniform1i(texLoc, 0);
 
 	glBindVertexArray(vao);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
-	// Setup vertex attrib pointers
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, x));
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, u));
-
-	// Render a solid block at cursor position
-	float x0 = cursorX * charWidth;
-	float y0 = cursorY * charHeight;
-	float x1 = x0 + charWidth;
-	float y1 = y0 + charHeight;
-
-	float tx0 = 0;
-	float ty0 = 0;
-	float tx1 = 1;
-	float ty1 = 1;
-
-	Vertex verts[6] = {
-		{x0, y0, tx0, ty0}, {x1, y0, tx1, ty0}, {x0, y1, tx0, ty1},
-
-		{x1, y0, tx1, ty0}, {x1, y1, tx1, ty1}, {x0, y1, tx0, ty1},
-	};
 
 	glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_DYNAMIC_DRAW);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
