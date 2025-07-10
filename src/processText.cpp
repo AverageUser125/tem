@@ -5,7 +5,7 @@
 
 struct ProcState {
   public:
-	enum Value {
+	enum Value: uint8_t {
 		None = 0,
 		SawESC = 1 << 0,
 		SawESCBracket = 1 << 1,

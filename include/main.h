@@ -14,8 +14,7 @@ class TermFlags {
 		INPUT_LF_TO_CRLF = 1 << 0,
 		INPUT_ECHO = 1 << 1,
 		OUTPUT_WRAP_LINES = 1 << 2,
-		OUTPUT_CRLF_TO_LF = 1 << 3,
-		OUTPUT_ESCAPE_CODES = 1 << 4,
+		OUTPUT_ESCAPE_CODES = 1 << 3,
 	};
 
   private:
