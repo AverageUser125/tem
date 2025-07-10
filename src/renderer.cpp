@@ -6,10 +6,11 @@
 #include "utf8.h"
 
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <string>
 #include <cstring> // memset
-#include <functional>
+#include <cstdio>  // fprintf, stderr
 
 struct Glyph {
 	float ax; // advance.x
@@ -21,31 +22,6 @@ struct Glyph {
 	float tx; // x offset in atlas
 };
 
-static constexpr int ATLAS_WIDTH = 1024;
-static constexpr int ATLAS_HEIGHT = 1024;
-
-static stbtt_fontinfo fontInfo;
-static unsigned char* ttfBuffer = nullptr;
-
-static unsigned char atlasBitmap[ATLAS_WIDTH * ATLAS_HEIGHT];
-static GLuint atlasTexture = 0;
-static float fontSizeGlobal = 0.0f;
-static float scale = 0.0f;
-
-static std::unordered_map<uint32_t, Glyph> glyphs;
-
-static int ascent = 0;
-static int descent = 0;
-static int lineGap = 0;
-
-static GLuint vao = 0, vbo = 0, shaderProgram = 0;
-
-// Vertex data: x, y, u, v
-struct Vertex {
-	float x, y, u, v;
-};
-
-// We'll create a simple shader (you said no need to check compile errors, but I include minimal)
 static const char* vertexShaderSrc = R"glsl(
 #version 330 core
 layout(location = 0) in vec2 in_pos;
@@ -73,9 +49,32 @@ void main() {
 }
 )glsl";
 
-// Helpers
+static constexpr int ATLAS_WIDTH = 1024;
+static constexpr int ATLAS_HEIGHT = 1024;
 
-static void checkGLError() { /* no-op as per your request */
+static stbtt_fontinfo fontInfo;
+static unsigned char* ttfBuffer = nullptr;
+
+static unsigned char atlasBitmap[ATLAS_WIDTH * ATLAS_HEIGHT];
+static GLuint atlasTexture = 0;
+static float fontSizeGlobal = 0.0f;
+static float scale = 0.0f;
+
+static std::unordered_map<uint32_t, Glyph> glyphs;
+static std::unordered_set<uint32_t> cachedCodepoints;
+
+static int ascent = 0;
+static int descent = 0;
+static int lineGap = 0;
+
+static GLuint vao = 0, vbo = 0, shaderProgram = 0;
+
+// Vertex data: x, y, u, v
+struct Vertex {
+	float x, y, u, v;
+};
+
+static void checkGLError() { /* no-op */
 }
 
 static GLuint compileShader(GLenum type, const char* src) {
@@ -92,7 +91,6 @@ static GLuint createShaderProgram() {
 	glAttachShader(program, vs);
 	glAttachShader(program, fs);
 	glLinkProgram(program);
-	// no error check as requested
 	glDeleteShader(vs);
 	glDeleteShader(fs);
 	return program;
@@ -110,16 +108,80 @@ static void freeGLResources() {
 	glDeleteProgram(shaderProgram);
 }
 
-// Packs glyphs in atlas starting from x=0, y=0 left to right, wrapping lines
-static void buildAtlas(const std::vector<uint32_t>& codepoints) {
-	memset(atlasBitmap, 0, sizeof(atlasBitmap));
+// Build or update atlas for the given new codepoints (append-only)
+static void buildAtlasIncremental(const std::vector<uint32_t>& newCodepoints) {
 	int x = 0, y = 0, rowHeight = 0;
 
-	glyphs.clear();
+	// Find max y from existing glyphs to continue packing
+	if (!glyphs.empty()) {
+		// Find bottom row (max y + height)
+		// We'll repack all glyphs to keep things simple (optional optimization)
+		x = 0;
+		y = 0;
+		rowHeight = 0;
+		// We'll rebuild entire atlas for simplicity
+		memset(atlasBitmap, 0, sizeof(atlasBitmap));
+		std::unordered_map<uint32_t, Glyph> oldGlyphs = glyphs;
+		glyphs.clear();
 
-	for (uint32_t cp : codepoints) {
+		// Insert old glyphs first
+		for (auto& [cp, g] : oldGlyphs) {
+			int glyphIndex = stbtt_FindGlyphIndex(&fontInfo, cp);
+			permaAssertComment(glyphIndex != 0, "Glyph must exist");
+
+			int advance, lsb;
+			stbtt_GetGlyphHMetrics(&fontInfo, glyphIndex, &advance, &lsb);
+
+			int glyphW = (int)g.bw;
+			int glyphH = (int)g.bh;
+			int xoff = (int)g.bl;
+			int yoff = (int)g.bt;
+
+			if (x + glyphW >= ATLAS_WIDTH) {
+				x = 0;
+				y += rowHeight;
+				rowHeight = 0;
+			}
+
+			permaAssert(y + glyphH < ATLAS_HEIGHT);
+
+			// Bake bitmap again for old glyphs (since we cleared atlas)
+			unsigned char* bitmap =
+				stbtt_GetGlyphBitmap(&fontInfo, scale, scale, glyphIndex, &glyphW, &glyphH, &xoff, &yoff);
+
+			for (int i = 0; i < glyphH; i++) {
+				memcpy(atlasBitmap + (y + i) * ATLAS_WIDTH + x, bitmap + i * glyphW, glyphW);
+			}
+
+			Glyph newG;
+			newG.ax = advance * scale;
+			newG.ay = 0;
+			newG.bw = (float)glyphW;
+			newG.bh = (float)glyphH;
+			newG.bl = (float)xoff;
+			newG.bt = (float)yoff;
+			newG.tx = (float)x / ATLAS_WIDTH;
+
+			glyphs[cp] = newG;
+
+			x += glyphW + 1;
+			if (glyphH > rowHeight)
+				rowHeight = glyphH;
+
+			stbtt_FreeBitmap(bitmap, nullptr);
+		}
+	}
+
+	// Now bake new glyphs
+	for (uint32_t cp : newCodepoints) {
+		if (glyphs.find(cp) != glyphs.end()) // already cached
+			continue;
+
 		int glyphIndex = stbtt_FindGlyphIndex(&fontInfo, cp);
-		permaAssertComment(glyphIndex != 0, "Glyph must exist");
+		if (glyphIndex == 0) {
+			// Unknown glyph, skip here (handled in render)
+			continue;
+		}
 
 		int advance, lsb;
 		stbtt_GetGlyphHMetrics(&fontInfo, glyphIndex, &advance, &lsb);
@@ -136,12 +198,10 @@ static void buildAtlas(const std::vector<uint32_t>& codepoints) {
 
 		permaAssert(y + glyphH < ATLAS_HEIGHT);
 
-		// copy bitmap to atlas
 		for (int i = 0; i < glyphH; i++) {
 			memcpy(atlasBitmap + (y + i) * ATLAS_WIDTH + x, bitmap + i * glyphW, glyphW);
 		}
 
-		// store glyph info
 		Glyph g;
 		g.ax = advance * scale;
 		g.ay = 0;
@@ -159,29 +219,6 @@ static void buildAtlas(const std::vector<uint32_t>& codepoints) {
 
 		stbtt_FreeBitmap(bitmap, nullptr);
 	}
-}
-
-static std::vector<uint32_t> extractCodepoints(const std::vector<std::string>& lines, int startLineIndex) {
-	std::unordered_map<uint32_t, bool> seen;
-	std::vector<uint32_t> cps;
-
-	for (size_t i = startLineIndex; i < lines.size(); i++) {
-		const char* s = lines[i].c_str();
-		const char* end = s + lines[i].size();
-
-		while (s < end) {
-			uint32_t cp = 0;
-			int len = decode_utf8(s, &cp);
-			if (len <= 0)
-				break; // invalid utf8 - stop decoding
-			s += len;
-			if (seen.find(cp) == seen.end()) {
-				seen[cp] = true;
-				cps.push_back(cp);
-			}
-		}
-	}
-	return cps;
 }
 
 static void uploadAtlasTexture() {
@@ -222,7 +259,20 @@ void startRender(float fontSize) {
 
 	memset(atlasBitmap, 0, sizeof(atlasBitmap));
 	glyphs.clear();
+	cachedCodepoints.clear();
 	initGLResources();
+
+	// Prebake ASCII range 32..126 at start
+	std::vector<uint32_t> asciiRange;
+	for (uint32_t cp = 32; cp <= 126; cp++)
+		asciiRange.push_back(cp);
+
+	buildAtlasIncremental(asciiRange);
+	uploadAtlasTexture();
+
+	// Update cached codepoints
+	for (uint32_t cp : asciiRange)
+		cachedCodepoints.insert(cp);
 
 	int glyphIndexSpace = stbtt_FindGlyphIndex(&fontInfo, ' ');
 	int advanceSpace, lsb;
@@ -235,10 +285,6 @@ void render(const std::vector<std::string>& lines, int startLineIndex, int scree
 	permaAssert(fontSizeGlobal > 0.0f);
 	if (lines.empty() || startLineIndex >= (int)lines.size())
 		return;
-
-	auto cps = extractCodepoints(lines, startLineIndex);
-	buildAtlas(cps);
-	uploadAtlasTexture();
 
 	glUseProgram(shaderProgram);
 
@@ -261,17 +307,14 @@ void render(const std::vector<std::string>& lines, int startLineIndex, int scree
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, u));
 
 	std::vector<Vertex> vertices;
-	// Calculate baseline Y for each line (distance from top)
 	float lineHeight = (ascent - descent + lineGap) * scale;
-	float yStart = 0; // top of screen, y grows downward
+	float yStart = 0;
 
 	for (int lineIndex = startLineIndex; lineIndex < (int)lines.size(); ++lineIndex) {
 		const char* p = lines[lineIndex].c_str();
 		const char* end = p + lines[lineIndex].size();
 
 		float penX = 0;
-
-		// Baseline Y for current line
 		float baselineY = yStart + ascent * scale + (lineIndex - startLineIndex) * lineHeight;
 
 		while (p < end) {
@@ -283,13 +326,16 @@ void render(const std::vector<std::string>& lines, int startLineIndex, int scree
 			if (cp == '\r')
 				continue;
 
-			auto it = glyphs.find(cp);
-			if (it == glyphs.end())
-				continue;
-			const Glyph& g = it->second;
+			if (glyphs.find(cp) == glyphs.end()) {
+				int glyphIndex = stbtt_FindGlyphIndex(&fontInfo, cp);
+				if (glyphIndex == 0) {
+					continue;
+				}
+			}
+
+			const Glyph& g = glyphs[cp];
 
 			float x0 = penX + g.bl;
-
 			float y0 = baselineY + g.bt;
 
 			float x1 = x0 + g.bw;
@@ -318,7 +364,6 @@ void render(const std::vector<std::string>& lines, int startLineIndex, int scree
 	glBindVertexArray(0);
 	glUseProgram(0);
 }
-
 
 void renderCursor(int cursorX, int cursorY, float deltaTime) {
 	if (fontSizeGlobal <= 0)
