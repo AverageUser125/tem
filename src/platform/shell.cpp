@@ -1,8 +1,8 @@
 #include <platform/shell.h>
 #include <vector>
-#include <atomic>
 #include <thread>
-#include <mutex>
+#include <string_view>
+#include <platform/tools.h>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -22,12 +22,10 @@ namespace platform
 #ifdef _WIN32
 
 class WinProcess : public Process {
-	std::mutex bufferMutex;
 	std::vector<char> buffer;
 	HANDLE hChildStdinWrite = nullptr;
 	HANDLE hChildStdoutRead = nullptr;
 	HANDLE hProcess = nullptr;
-	std::atomic<bool> running{true};
 
   public:
 	WinProcess(std::string_view cmd) {
@@ -77,7 +75,6 @@ class WinProcess : public Process {
 		if (available == 0)
 			return;
 
-		std::lock_guard lock(bufferMutex);
 		size_t oldSize = buffer.size();
 		buffer.resize(oldSize + available);
 		DWORD read = 0;
@@ -101,7 +98,6 @@ class WinProcess : public Process {
 	}
 
 	void terminate() override {
-		running = false;
 		if (hProcess)
 			TerminateProcess(hProcess, 0);
 	}
@@ -117,36 +113,52 @@ class WinProcess : public Process {
 #else
 
 class PosixProcess : public Process {
-	std::mutex bufferMutex;
 	std::vector<char> buffer;
 	int pid = -1;
 	int writeFD = -1;
 	int readFD = -1;
-	std::atomic<bool> running{true};
 
   public:
 	PosixProcess(std::string_view cmd) {
 		int pipeIn[2], pipeOut[2];
-		pipe(pipeIn);
-		pipe(pipeOut);
+
+		permaAssertComment(pipe(pipeIn) != -1, "pipe(pipeIn) failed");
+		permaAssertComment(pipe(pipeOut) != -1, "pipe(pipeOut) failed");
 
 		pid = fork();
+		permaAssertComment(pid != -1, "fork() failed");
+
 		if (pid == 0) {
+			// Child process
 			dup2(pipeIn[0], STDIN_FILENO);
 			dup2(pipeOut[1], STDOUT_FILENO);
 			dup2(pipeOut[1], STDERR_FILENO);
 			close(pipeIn[1]);
 			close(pipeOut[0]);
 
-			execl("/bin/sh", "sh", "-c", cmd.c_str(), (char*)nullptr);
-			_exit(1);
+			// Try to exec the given command
+			execl(cmd.data(), cmd.data(), (char*)nullptr);
+
+			// If we reach here, execl failed
+			_exit(127); // Indicate exec failure
 		}
 
+		// Parent process
 		close(pipeIn[0]);
 		close(pipeOut[1]);
 		writeFD = pipeIn[1];
 		readFD = pipeOut[0];
 		buffer.reserve(4096);
+
+		// Make readFD non-blocking
+		int flags = fcntl(readFD, F_GETFL, 0);
+		permaAssertComment(flags != -1, "fcntl(F_GETFL) failed");
+		permaAssertComment(fcntl(readFD, F_SETFL, flags | O_NONBLOCK) != -1, "fcntl(F_SETFL) failed");
+
+		// Check if child exited immediately (exec failure)
+		int status;
+		pid_t result = waitpid(pid, &status, WNOHANG);
+		permaAssertComment(result == 0, "Process exited early (exec failed or crashed)");
 	}
 
 	void write(const char* data, size_t len) override {
@@ -157,7 +169,6 @@ class PosixProcess : public Process {
 		char temp[1024];
 		ssize_t count = ::read(readFD, temp, sizeof(temp));
 		if (count > 0) {
-			std::lock_guard lock(bufferMutex);
 			buffer.insert(buffer.end(), temp, temp + count);
 		}
 	}
@@ -174,7 +185,6 @@ class PosixProcess : public Process {
 	}
 
 	void terminate() override {
-		running = false;
 		if (pid != -1)
 			kill(pid, SIGTERM);
 	}

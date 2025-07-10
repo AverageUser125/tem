@@ -4,7 +4,7 @@
 #include <stb_truetype.h>
 #include <platform/tools.h> // permaAssert and defer macros
 #include "utf8.h"
-
+#include <cmath>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>

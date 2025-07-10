@@ -7,6 +7,7 @@
 #include "platform/tools.h"
 #include "platform/window.h"
 #include "gameLogic.h"
+#include <cmath>
 
 #ifdef _WIN32
 extern "C" __declspec(dllimport) int __stdcall AllocConsole();

@@ -163,8 +163,11 @@ static void handleInput() {
 			insertCodePointAtCursor('\n', command);
 		}
 		command.clear();
+		#ifdef _WIN32
 		shell->write("\r\n", 2);
-		
+		#else
+		shell->write("\n", 1);
+		#endif
 		cursor.x = 0;
 		cursor.y++;
 	}
@@ -192,7 +195,7 @@ bool gameLogic(float deltaTime) {
 
 	render(lines, scrollLineStart, screenW, screenH);
 	renderCursor(cursor.x, (cursor.y - scrollLineStart), deltaTime, screenW, screenH);
-	return true;
+	return shell->isRunning();
 }
 
 void closeGame() {
@@ -201,6 +204,10 @@ void closeGame() {
 }
 
 void startGame() {
+	#ifdef _WIN32
 	shell = platform::launch("cmd.exe /Q /K");
+	#else
+	shell = platform::launch("/bin/bash");
+	#endif
 	startRender(fontSize);
 }
