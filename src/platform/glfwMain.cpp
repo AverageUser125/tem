@@ -140,6 +140,7 @@ void windowFocusCallback(GLFWwindow* window, int focused) {
 
 void windowSizeCallback(GLFWwindow* window, int x, int y) {
 	platform::internal::resetInputsToZero();
+	glViewport(0, 0, x, y);
 }
 
 void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos) {
@@ -227,7 +228,7 @@ int main() {
 	int h = 600;
 	permaAssert(glfwInit());
 	
-	GLFWwindow* wind = glfwCreateWindow(w, h, "tem", nullptr, nullptr);
+	wind = glfwCreateWindow(w, h, "tem", nullptr, nullptr);
 	permaAssert(wind != nullptr);
 	glfwMakeContextCurrent(wind);
 	glfwSwapInterval(1);
@@ -255,7 +256,6 @@ int main() {
 		if (deltaTime > 1.f / 10) {
 			deltaTime = 1.f / 10;
 		}
-	
 		if (!gameLogic()) {
 			break;
 		}

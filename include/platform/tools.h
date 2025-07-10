@@ -9,7 +9,7 @@ void assertFuncProduction(const char* expression, const char* file_name, unsigne
 void assertFuncInternal(const char* expression, const char* file_name, unsigned const line_number,
 						const char* comment = "---");
 
-#if DEVELOPLEMT_BUILD == 1
+#if PRODUCTION_BUILD == 0
 
 #define permaAssert(expression)                                                                                        \
 	(void)((!!(expression)) || (assertFuncInternal(#expression, __FILE__, (unsigned)(__LINE__)), 0))

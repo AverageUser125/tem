@@ -1,15 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
 
-set(CMAKE_CXX_STANDARD 17)
-
-if(POLICY CMP0069)
-    cmake_policy(SET CMP0069 NEW)
-endif()
-# Enable Hot Reload for MSVC compilers if supported, came with the default file
-if(POLICY CMP0141)
-    cmake_policy(SET CMP0141 NEW)
-    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
-endif()
 
 #! ! ! ! ! ! !
 #set this to true to ship the game!
@@ -17,6 +7,21 @@ endif()
 #! ! ! ! ! ! !
 set(PRODUCTION_BUILD OFF CACHE BOOL "Make this a production build" FORCE)
 #delete the out folder after changing if visual studio doesn recognize the change!
+option(ENABLE_ADDRESS_SANITIZER "Enable address sanitizer" ON)
+
+
+set(CMAKE_CXX_STANDARD 17)
+
+if(POLICY CMP0069)
+    cmake_policy(SET CMP0069 NEW)
+endif()
+
+# Enable Hot Reload for MSVC compilers if supported
+if(POLICY CMP0141)
+    cmake_policy(SET CMP0141 NEW)
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
+endif()
+set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "ProgramDatabase")
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Release>:Release>")
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -26,6 +31,23 @@ if(PRODUCTION_BUILD)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE) #link time optimization
 else()
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
+endif()
+
+if(ENABLE_ADDRESS_SANITIZER)
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+        message(STATUS "Address Sanitizer Enabled (Clang/GNU)")
+        add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+        add_link_options(-fsanitize=address)
+    elseif (WIN32)
+        string(REPLACE "/ZI" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+        string(REPLACE "/ZI" "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+
+        message(STATUS "Address Sanitizer Enabled (MSVC)")
+        add_compile_options(/fsanitize=address)
+        add_link_options(/fsanitize=address)  
+    else()
+        message(WARNING "Address Sanitizer could not be enabled")
+    endif()
 endif()
 
 

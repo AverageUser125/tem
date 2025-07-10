@@ -1,4 +1,4 @@
-
+#pragma once
 namespace platform
 {
 ///sets the mouse pos relative to the window's drawing area
