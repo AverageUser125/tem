@@ -57,20 +57,13 @@ static size_t charIndexToByteOffset(const std::string& utf8line, int charIndex) 
 }
 
 static void insertCodePointAtCursor(char32_t cp) {
+	if (!o.flags.has(TermFlags::INPUT_ECHO)) {
+		return;
+	}
 	ensureLineExists(o.cursorY);
 	StyledLine& line = o.screen[o.cursorY];
-
-	// encode cp to UTF-8 bytes using your encode_utf8 function
-
-	if (o.flags.has(TermFlags::INPUT_ECHO)) {
-		line.insert(line.begin() + o.cursorX, {cp});
-		incCurX(1);
-	}
-
-	char buf[4];
-	int bytesWritten = encode_utf8(cp, buf);
-	size_t index = charIndexToByteOffset(o.command, o.inputCursor);
-	o.command.insert(index, buf, bytesWritten);
+	line.insert(line.begin() + o.cursorX, {cp});
+	incCurX(1);
 }
 
 static void deleteCharBeforeCursor() {
@@ -105,7 +98,34 @@ static void handleInput() {
 		if (ch < 32)
 			continue;
 		insertCodePointAtCursor(ch);
+		char buf[4];
+		int bytesWritten = encode_utf8(ch, buf);
+		size_t index = charIndexToByteOffset(o.command, o.inputCursor);
+		o.command.insert(index, buf, bytesWritten);
 		incInpCur(1);
+	}
+
+	if ((platform::isButtonHeld(platform::Button::LeftCtrl) || platform::isButtonPressed(platform::Button::LeftCtrl)) &&
+		platform::isButtonPressed(platform::Button::V)) {
+		const char* clip = platform::getClipboard(); // null-terminated UTF-8
+		if (clip) {
+			size_t insertIndex = charIndexToByteOffset(o.command, o.inputCursor);
+			o.command.insert(insertIndex, clip);
+
+			// Advance input cursor and visual cursor by codepoint count
+			int cpCount = get_length(clip);
+			incInpCur(cpCount);
+
+			const char* p = clip;
+			while (*p) {
+				uint32_t cp;
+				int len = decode_utf8(p, &cp);
+				if (len <= 0)
+					break; // invalid UTF-8 — stop
+				insertCodePointAtCursor(cp);
+				p += len;
+			}
+		}
 	}
 	if (platform::isButtonTyped(platform::Button::Left) && o.inputCursor > 0) {
 		incInpCur(-1);
@@ -121,13 +141,11 @@ static void handleInput() {
 		incCurX(-o.inputCursor);
 		o.inputCursor = 0;
 	}
-	// TODO: make it remove from command
 	if (platform::isButtonTyped(platform::Button::Backspace)) {
 		deleteCharBeforeCursor();
 	}
 
 	if (platform::isButtonTyped(platform::Button::Enter)) {
-		// kinda hacky, but works. adds an extra empty line.
 		if (o.command.empty()) {
 			o.shell->getOutputBuffer().emplace_back('\n');
 		}

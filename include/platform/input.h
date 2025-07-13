@@ -221,6 +221,9 @@ const Controller& getControllerButtons();
 
 const std::u32string& getTypedInput();
 
+const char* getClipboard();
+void setClipboard(const char*);
+
 namespace internal
 {
 

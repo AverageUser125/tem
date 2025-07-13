@@ -191,6 +191,15 @@ void getWindowSize(int* x, int *y) {
 	glfwGetWindowSize(wind, x, y);
 }
 
+// Should probably be in 'input.cpp' but that doesn't have access to the 'GLFWindow*'
+const char* platform::getClipboard() {
+	return glfwGetClipboardString(wind);
+}
+
+void platform::setClipboard(const char* str) {
+	glfwSetClipboardString(wind, str);
+}
+
 void showMouse(bool show) {
 	if (show) {
 		glfwSetInputMode(wind, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
