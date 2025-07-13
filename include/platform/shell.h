@@ -27,4 +27,4 @@ struct Process {
 // The returned Process* must be deleted by the user
 Process* launch();
 
-} // namespace platform
+}

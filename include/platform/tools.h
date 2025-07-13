@@ -28,6 +28,7 @@ void assertFuncInternal(const char* expression, const char* file_name, unsigned 
 #endif
 
 #include <functional>
+
 //raii stuff, it will basically call the function that you pass to it be called at scope end, usage: defer(func());
 struct DeferImpl {
   public:

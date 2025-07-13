@@ -1,6 +1,7 @@
 #pragma once
 #include <GLFW/glfw3.h>
 #include <string>
+
 namespace platform
 {
 struct Button {
@@ -103,7 +104,7 @@ inline void resetButtonToZero(Button& b) {
 	b.held = 0;
 	b.released = 0;
 }
-} // namespace internal
+}
 
 struct Controller {
 	enum Buttons {
@@ -284,6 +285,5 @@ void resetInputsToZero();
 void addToTypedInput(uint32_t c);
 void resetTypedInput();
 
-}; // namespace internal
-
-}; // namespace platform
+};
+};

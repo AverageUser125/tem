@@ -162,6 +162,7 @@ void characterCallback(GLFWwindow* window, unsigned int codepoint) {
 
 #pragma endregion
 #pragma region platform functions
+
 namespace platform
 {
 void setRelMousePosition(int x, int y) {
@@ -187,7 +188,7 @@ void getRelMousePosition(int* x, int* y) {
 	*y = floor(yI);
 }
 
-void getWindowSize(int* x, int *y) {
+void getWindowSize(int* x, int* y) {
 	glfwGetWindowSize(wind, x, y);
 }
 
@@ -220,13 +221,13 @@ void setWindowTitle(const char* title) {
 	glfwSetWindowTitle(wind, title);
 }
 
-}; // namespace platform
+};
 
 #pragma endregion
 
 int main() {
 
-	#ifdef _WIN32
+#ifdef _WIN32
 #ifdef _MSC_VER
 #if PRODUCTION_BUILD == 0
 	AllocConsole();
@@ -249,7 +250,7 @@ int main() {
 	int w = 800;
 	int h = 600;
 	permaAssert(glfwInit());
-	
+
 	wind = glfwCreateWindow(w, h, "tem", nullptr, nullptr);
 	permaAssert(wind != nullptr);
 	glfwMakeContextCurrent(wind);

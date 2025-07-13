@@ -1,4 +1,5 @@
 #include "utf8.h"
+
 int decode_utf8(const char* s, uint32_t* codepoint) {
 	uint8_t c = static_cast<uint8_t>(s[0]);
 

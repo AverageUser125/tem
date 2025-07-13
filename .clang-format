@@ -2,6 +2,7 @@ BasedOnStyle: Microsoft
 Language: Cpp
 DerivePointerAlignment: false
 PointerAlignment: Left
+
 BraceWrapping:
   AfterClass: false
   AfterControlStatement: false
@@ -18,6 +19,7 @@ BraceWrapping:
   SplitEmptyFunction: true
   SplitEmptyRecord: true
   SplitEmptyNamespace: true
+
 MaxEmptyLinesToKeep: 2
 ReflowComments: false
 SortIncludes: false
@@ -32,3 +34,5 @@ SpaceBeforeInheritanceColon: true
 SpaceBeforeParens: ControlStatementsExceptForEachMacros
 SpaceBeforeRangeBasedForLoopColon: true
 SeparateDefinitionBlocks: Always
+AlwaysBreakTemplateDeclarations: true
+FixNamespaceComments: false

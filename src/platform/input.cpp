@@ -1,6 +1,7 @@
 #include "platform/input.h"
 #include "utf8.h"
 #include <string_view>
+
 namespace
 {
 platform::Button keyBoard[platform::Button::BUTTONS_COUNT];

@@ -189,4 +189,4 @@ Process* launch() {
 #endif
 }
 
-} // namespace
+}

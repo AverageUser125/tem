@@ -74,6 +74,7 @@ struct StyledChar {
 	TermColor bg = TermColor::Default;
 	TextAttribute attr = TextAttribute::None;
 };
+
 using StyledLine = std::vector<StyledChar>;
 using StyledScreen = std::vector<StyledLine>;
 

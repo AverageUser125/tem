@@ -1,5 +1,4 @@
 #include "renderer.h"
-
 #include <glad/glad.h>
 #include <stb_truetype.h>
 #include <platform/tools.h>
@@ -89,7 +88,7 @@ struct Vertex {
 	float r, g, b, a;
 };
 
-struct vec4 { 
+struct vec4 {
 	union {
 		struct {
 			float x, y, z, w;
@@ -448,12 +447,9 @@ void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int sc
 
 	constexpr vec4 color = termColorToRGBA(TermColor::Default);
 	Vertex verts[6] = {
-		{x0, y0, tx0, ty0, color.r, color.g, color.b, color.a},
-		{x1, y0, tx1, ty0, color.r, color.g, color.b, color.a},
-		{x0, y1, tx0, ty1, color.r, color.g, color.b, color.a},
-		{x1, y0, tx1, ty0, color.r, color.g, color.b, color.a},
-		{x1, y1, tx1, ty1, color.r, color.g, color.b, color.a}, 
-		{x0, y1, tx0, ty1, color.r, color.g, color.b, color.a},
+		{x0, y0, tx0, ty0, color.r, color.g, color.b, color.a}, {x1, y0, tx1, ty0, color.r, color.g, color.b, color.a},
+		{x0, y1, tx0, ty1, color.r, color.g, color.b, color.a}, {x1, y0, tx1, ty0, color.r, color.g, color.b, color.a},
+		{x1, y1, tx1, ty1, color.r, color.g, color.b, color.a}, {x0, y1, tx0, ty1, color.r, color.g, color.b, color.a},
 	};
 
 	glUseProgram(shaderProgram);

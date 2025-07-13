@@ -244,38 +244,34 @@ static void handleCSI() {
 	std::string& csiData = o.procState.escBuf;
 	char type = csiData.back();
 	csiData.pop_back();
-	
+
 	switch (type) {
 	case 'm': {
 		applySGRColor(csiData);
 		break;
 	}
-	case 'G':
-	{
+	case 'G': {
 		int col = std::stoi(csiData);
 		o.cursorX = col;
 		break;
 	}
-	case 'A':
-	{
+	case 'A': {
 		// TODO: more protections
 		int moveUpBy = std::stoi(csiData);
 		if (o.cursorY > moveUpBy) {
-			o.cursorY -= moveUpBy;		
+			o.cursorY -= moveUpBy;
 		} else {
 			o.cursorY = 0;
 		}
 		break;
 	}
-	case 'B':
-	{
+	case 'B': {
 		// TODO: more protections
 		int moveDownBy = std::stoi(csiData);
 		o.cursorY += moveDownBy;
 		break;
 	}
-	case 'C':
-	{
+	case 'C': {
 		// TODO: more protections
 		int moveForwardBy = std::stoi(csiData);
 		o.cursorX += moveForwardBy;
@@ -287,8 +283,7 @@ static void handleCSI() {
 		o.cursorX -= moveBackwardsBy;
 		break;
 	}
-	case 'I':
-	{
+	case 'I': {
 		int count = 1;
 		try {
 			count = std::stoi(csiData);
@@ -301,7 +296,7 @@ static void handleCSI() {
 
 		break;
 	}
-	case 'l': 
+	case 'l':
 	case 'h': {
 		handleDECPrivateMode(csiData, type);
 		break;
@@ -330,8 +325,7 @@ static void handleCSI() {
 		handleEraseInDisplay(mode);
 		break;
 	}
-	default:
-	{
+	default: {
 		std::cout << "[" << type << "]'" << csiData << "'\n";
 	}
 	}
@@ -492,7 +486,6 @@ std::vector<char> processPartialOutputSegment(const std::vector<char>& inputSegm
 			break;
 		}
 		}
-
 	}
 
 	if (i > 0) {

@@ -177,7 +177,7 @@ bool gameLogic(float deltaTime) {
 		appendNewLines(cleaned);
 		buf.clear();
 	}
-	
+
 	// Assumes monospace font
 	o.cols = screenH / o.fontSize;
 	o.rows = screenW / o.fontSize;
@@ -203,9 +203,9 @@ void startGame() {
 	startRender(o.fontSize);
 
 	o.flags = TermFlags::INPUT_ECHO | TermFlags::OUTPUT_ESCAPE_CODES;
-	#ifdef _WIN32
+#ifdef _WIN32
 	o.flags |= TermFlags::INPUT_LF_TO_CRLF;
-	#else
+#else
 	o.flags |= TermFlags::OUTPUT_RETURNS_INPUT;
-	#endif
+#endif
 }
