@@ -4,6 +4,7 @@
 #include <string_view>
 #include <platform/tools.h>
 #include <stdexcept>
+#include <stdio.h>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -20,59 +21,69 @@
 
 namespace platform
 {
-
-#ifdef _WIN32
-
+	#ifdef _WIN32
 class WinProcess : public Process {
-	std::vector<char> buffer;
-	HANDLE hChildStdinWrite = nullptr;
-	HANDLE hChildStdoutRead = nullptr;
+	HPCON hPC = nullptr;
+	HANDLE hInputWrite = nullptr;
+	HANDLE hOutputRead = nullptr;
 	HANDLE hProcess = nullptr;
+	std::vector<char> buffer;
 
   public:
 	WinProcess(std::string_view cmd) {
-		SECURITY_ATTRIBUTES sa = {sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
-		HANDLE hStdoutReadTmp = nullptr, hStdoutWrite = nullptr;
-		HANDLE hStdinRead = nullptr, hStdinWriteTmp = nullptr;
+		// Create pipes
+		HANDLE hInputRead = nullptr;
+		HANDLE hOutputWrite = nullptr;
+		SECURITY_ATTRIBUTES sa{sizeof(sa), nullptr, TRUE};
 
-		CreatePipe(&hStdoutReadTmp, &hStdoutWrite, &sa, 0);
-		SetHandleInformation(hStdoutReadTmp, HANDLE_FLAG_INHERIT, 0);
+		if (!CreatePipe(&hInputRead, &hInputWrite, &sa, 0))
+			throw std::runtime_error("CreatePipe (in) failed");
+		if (!CreatePipe(&hOutputRead, &hOutputWrite, &sa, 0))
+			throw std::runtime_error("CreatePipe (out) failed");
 
-		CreatePipe(&hStdinRead, &hStdinWriteTmp, &sa, 0);
-		SetHandleInformation(hStdinWriteTmp, HANDLE_FLAG_INHERIT, 0);
+		// Create the pseudo console
+		COORD size{80, 25};
+		HRESULT hr = CreatePseudoConsole(size, hInputRead, hOutputWrite, 0, &hPC);
+		CloseHandle(hInputRead);
+		CloseHandle(hOutputWrite);
+		if (FAILED(hr))
+			throw std::runtime_error("CreatePseudoConsole failed");
 
-		STARTUPINFOA si = {};
-		si.cb = sizeof(si);
-		si.dwFlags = STARTF_USESTDHANDLES;
-		si.hStdOutput = hStdoutWrite;
-		si.hStdError = hStdoutWrite;
-		si.hStdInput = hStdinRead;
+		// Setup attribute list
+		STARTUPINFOEXA si{};
+		si.StartupInfo.cb = sizeof(si);
+		SIZE_T attrListSize = 0;
+		InitializeProcThreadAttributeList(nullptr, 1, 0, &attrListSize);
+		si.lpAttributeList = (LPPROC_THREAD_ATTRIBUTE_LIST)HeapAlloc(GetProcessHeap(), 0, attrListSize);
+		InitializeProcThreadAttributeList(si.lpAttributeList, 1, 0, &attrListSize);
+		UpdateProcThreadAttribute(si.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, hPC, sizeof(hPC), nullptr,
+								  nullptr);
 
-		PROCESS_INFORMATION pi;
-		BOOL success = CreateProcessA(nullptr, const_cast<char*>(cmd.data()), nullptr, nullptr, TRUE, CREATE_NO_WINDOW,
-									  nullptr, nullptr, &si, &pi);
+		// Start process
+		PROCESS_INFORMATION pi{};
+		std::string command = std::string(cmd);
+		BOOL ok = CreateProcessA(nullptr, command.data(), nullptr, nullptr, FALSE, EXTENDED_STARTUPINFO_PRESENT,
+								 nullptr, nullptr, &si.StartupInfo, &pi);
 
-		CloseHandle(hStdoutWrite);
-		CloseHandle(hStdinRead);
-		if (!success)
+		DeleteProcThreadAttributeList(si.lpAttributeList);
+		HeapFree(GetProcessHeap(), 0, si.lpAttributeList);
+
+		if (!ok)
 			throw std::runtime_error("CreateProcess failed");
 
-		hChildStdinWrite = hStdinWriteTmp;
-		hChildStdoutRead = hStdoutReadTmp;
-		hProcess = pi.hProcess;
 		CloseHandle(pi.hThread);
-
+		hProcess = pi.hProcess;
 		buffer.reserve(4096);
 	}
 
 	void write(const char* data, size_t len) override {
-		DWORD written;
-		WriteFile(hChildStdinWrite, data, (DWORD)len, &written, nullptr);
+		DWORD written = 0;
+		WriteFile(hInputWrite, data, (DWORD)len, &written, nullptr);
 	}
 
 	void update() override {
 		DWORD available = 0;
-		if (!PeekNamedPipe(hChildStdoutRead, nullptr, 0, nullptr, &available, nullptr))
+		if (!PeekNamedPipe(hOutputRead, nullptr, 0, nullptr, &available, nullptr))
 			return;
 		if (available == 0)
 			return;
@@ -80,7 +91,7 @@ class WinProcess : public Process {
 		size_t oldSize = buffer.size();
 		buffer.resize(oldSize + available);
 		DWORD read = 0;
-		if (ReadFile(hChildStdoutRead, buffer.data() + oldSize, available, &read, nullptr)) {
+		if (ReadFile(hOutputRead, buffer.data() + oldSize, available, &read, nullptr)) {
 			buffer.resize(oldSize + read);
 		} else {
 			buffer.resize(oldSize); // rollback
@@ -94,9 +105,9 @@ class WinProcess : public Process {
 	bool isRunning() const override {
 		if (!hProcess)
 			return false;
-		DWORD exitCode;
-		GetExitCodeProcess(hProcess, &exitCode);
-		return exitCode == STILL_ACTIVE;
+		DWORD code = 0;
+		GetExitCodeProcess(hProcess, &code);
+		return code == STILL_ACTIVE;
 	}
 
 	void terminate() override {
@@ -106,9 +117,14 @@ class WinProcess : public Process {
 
 	~WinProcess() override {
 		terminate();
-		CloseHandle(hChildStdoutRead);
-		CloseHandle(hChildStdinWrite);
-		CloseHandle(hProcess);
+		if (hPC)
+			ClosePseudoConsole(hPC);
+		if (hInputWrite)
+			CloseHandle(hInputWrite);
+		if (hOutputRead)
+			CloseHandle(hOutputRead);
+		if (hProcess)
+			CloseHandle(hProcess);
 	}
 };
 

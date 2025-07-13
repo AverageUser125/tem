@@ -16,6 +16,9 @@ namespace std
 {
 static int stoi(std::string_view sv) {
 	int out;
+	if (sv.empty() || sv.data()[0] == '\0') {
+		throw std::runtime_error("stoi failed");
+	}
 	const std::from_chars_result result = std::from_chars(sv.data(), sv.data() + sv.size(), out);
 	if (result.ec == std::errc::invalid_argument || result.ec == std::errc::result_out_of_range) {
 		throw std::runtime_error("stoi failed");
@@ -301,7 +304,7 @@ static void handleCSI() {
 		handleDECPrivateMode(csiData, type);
 		break;
 	}
-	case 'H': {
+	//case 'H': {
 		/*
 		if (csiData.empty()) {
 			o.cursorX = 0;
@@ -314,9 +317,23 @@ static void handleCSI() {
 			o.cursorY = std::stoi(params[1]);
 		} catch (...) {
 		}
-		*/
 		// TODO: FIX THE CURSOR, split it into absolute and relative cursors
 		// or a scrollBarY and a relative cursor, just something.
+		break;
+	}
+		*/
+	case 'K': {
+		int mode = 0;
+		try {
+			mode = std::stoi(csiData);
+		} catch (...) {
+		}
+		if (mode == 0) {
+			StyledLine& line = o.screen[o.cursorY];
+			if (!line.empty()) {
+				line.erase(line.begin() + o.cursorX, line.end());
+			}
+		}
 		break;
 	}
 	case 'J': {
@@ -347,8 +364,8 @@ static void handleOSC() {
 		return;
 	}
 
-	std::string_view param = oscData.substr(0, semicolonPos);
-	std::string_view content = oscData.substr(semicolonPos + 1);
+	std::string_view param = std::string_view(oscData.data(), semicolonPos);
+	std::string_view content = std::string_view(oscData.data() + semicolonPos + 1, oscData.size() - semicolonPos - 1);
 
 	int paramNum = 0;
 	try {

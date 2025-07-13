@@ -170,6 +170,7 @@ bool gameLogic(float deltaTime) {
 
 	handleInput();
 
+	ensureLineExists(o.cursorY);
 	o.shell->update();
 	auto& buf = o.shell->getOutputBuffer();
 	if (!buf.empty()) {
