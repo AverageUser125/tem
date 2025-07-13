@@ -97,8 +97,7 @@ struct vec4 {
 	};
 };
 
-
-static vec4 termColorToRGBA(TermColor color) {
+constexpr vec4 termColorToRGBA(TermColor color) {
 	switch (color) {
 	case TermColor::Black:
 		return {0.0f, 0.0f, 0.0f, 1.0f};
@@ -201,7 +200,7 @@ static void buildAtlasIncremental(const std::vector<uint32_t>& newCodepoints) {
 				memcpy(atlasBitmap + (y + i) * ATLAS_WIDTH + x, bitmap + i * glyphW, glyphW);
 			}
 
-			Glyph newG;
+			Glyph newG{};
 			newG.ax = advance * scale;
 			newG.ay = 0;
 			newG.bw = (float)glyphW;
@@ -420,7 +419,7 @@ void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int sc
 
 	const Glyph& g = it->second;
 
-	float cursorWidth = 1.0f;
+	float cursorWidth = 2.0f;
 	float offsetX = 0.2f; // Shift left or right by modifying this value (pixels)
 
 	float lineHeight = (ascent - descent + lineGap) * scale;
@@ -440,9 +439,14 @@ void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int sc
 	float ty0 = 0.0f;
 	float ty1 = g.bh / ATLAS_HEIGHT;
 
+	constexpr vec4 color = termColorToRGBA(TermColor::Default);
 	Vertex verts[6] = {
-		{x0, y0, tx0, ty0}, {x1, y0, tx1, ty0}, {x0, y1, tx0, ty1},
-		{x1, y0, tx1, ty0}, {x1, y1, tx1, ty1}, {x0, y1, tx0, ty1},
+		{x0, y0, tx0, ty0, color.r, color.g, color.b, color.a},
+		{x1, y0, tx1, ty0, color.r, color.g, color.b, color.a},
+		{x0, y1, tx0, ty1, color.r, color.g, color.b, color.a},
+		{x1, y0, tx1, ty0, color.r, color.g, color.b, color.a},
+		{x1, y1, tx1, ty1, color.r, color.g, color.b, color.a}, 
+		{x0, y1, tx0, ty1, color.r, color.g, color.b, color.a},
 	};
 
 	glUseProgram(shaderProgram);
@@ -463,6 +467,8 @@ void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int sc
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, x));
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, u));
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, r));
 
 	glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_DYNAMIC_DRAW);
 	glDrawArrays(GL_TRIANGLES, 0, 6);

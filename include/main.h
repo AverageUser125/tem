@@ -93,6 +93,7 @@ struct Data {
 	platform::Process* shell = nullptr;
 	float fontSize = 16.0f;
 	int cursorX = 0, cursorY = 0, inputCursor = 0;
+	int rows = 0, cols = 0;
 	int ignoreOutputCount = 0;
 	TermFlags flags;
 };

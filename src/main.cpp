@@ -165,7 +165,6 @@ static void handleInput() {
 bool gameLogic(float deltaTime) {
 	int screenW, screenH;
 	platform::getWindowSize(&screenW, &screenH);
-
 	if (platform::isButtonPressed(platform::Button::F11))
 		platform::setFullScreen(!platform::isFullScreen());
 
@@ -178,12 +177,16 @@ bool gameLogic(float deltaTime) {
 		appendNewLines(cleaned);
 		buf.clear();
 	}
+	
+	// Assumes monospace font
+	o.cols = screenH / o.fontSize;
+	o.rows = screenW / o.fontSize;
 
 	int scrollLineStart = 0;
 	int totalLines = int(o.screen.size());
-	int visibleLines = screenH / o.fontSize;
-	if (totalLines > visibleLines)
-		scrollLineStart = totalLines - visibleLines;
+	if (totalLines > o.cols)
+		scrollLineStart = totalLines - o.cols;
+
 
 	render(o.screen, scrollLineStart, screenW, screenH);
 	renderCursor(o.cursorX, (o.cursorY - scrollLineStart), deltaTime, screenW, screenH);

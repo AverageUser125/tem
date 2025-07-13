@@ -9,6 +9,24 @@
 #include <cstdio>
 #include <cstring>
 #include <platform/window.h>
+#include <charconv>
+#include <stdexcept>
+
+namespace std
+{
+static int stoi(std::string_view sv) {
+	int out;
+	const std::from_chars_result result = std::from_chars(sv.data(), sv.data() + sv.size(), out);
+	if (result.ec == std::errc::invalid_argument || result.ec == std::errc::result_out_of_range) {
+		throw std::runtime_error("stoi failed");
+	}
+	return out;
+}
+}
+
+inline StyledChar makeStyledChar(char32_t ch) {
+	return StyledChar{ch, o.procState.currFG, o.procState.currBG, o.procState.currAttr};
+}
 
 static std::vector<std::string_view> split(const std::string_view& str, char delimiter) {
 	std::vector<std::string_view> parts;
@@ -31,7 +49,7 @@ static void applySGRColor(std::string_view codeStr) {
 	for (auto& part : codes) {
 		int code = 0;
 		try {
-			code = std::stoi(std::string(part));
+			code = std::stoi(part);
 		} catch (...) {
 			continue; // ignore invalid input, but continue with others
 		}
@@ -162,7 +180,7 @@ static void handleDECPrivateMode(std::string_view params, char finalChar) {
 
 	int mode = 0;
 	try {
-		mode = std::stoi(std::string(modeStr));
+		mode = std::stoi(modeStr);
 	} catch (...) {
 		return;
 	}
@@ -179,6 +197,46 @@ static void handleDECPrivateMode(std::string_view params, char finalChar) {
 	} else if (finalChar == 'l') {
 		// Clear the flag
 		o.flags &= ~flag;
+	}
+}
+
+static void handleEraseInDisplay(int mode) {
+	switch (mode) {
+	case 0: { // Erase from cursor to end of screen
+		for (int y = o.cursorY; y < o.rows; ++y) {
+			StyledLine& line = o.screen[y];
+			int start = (y == o.cursorY) ? o.cursorX : 0;
+			for (size_t x = start; x < line.size(); ++x) {
+				line[x] = makeStyledChar(U' ');
+			}
+		}
+		break;
+	}
+	case 1: { // Erase from start to cursor
+		for (int y = 0; y <= o.cursorY; ++y) {
+			StyledLine& line = o.screen[y];
+			int end = (y == o.cursorY) ? o.cursorX : static_cast<int>(line.size());
+			for (int x = 0; x < end && x < static_cast<int>(line.size()); ++x) {
+				line[x] = makeStyledChar(U' ');
+			}
+		}
+		break;
+	}
+	case 2: { // Erase entire screen
+		o.screen.clear();
+		o.cursorY = 0;
+		o.cursorX = 0;
+		o.inputCursor = 0;
+		break;
+	}
+	case 3: { // Erase scrollback buffer (non-standard, xterm specific)
+		o.screen.clear();
+		o.screen.resize(o.rows, StyledLine(o.cols, makeStyledChar(U' ')));
+		break;
+	}
+	default:
+		// Unknown mode, ignore
+		break;
 	}
 }
 
@@ -233,15 +291,11 @@ static void handleCSI() {
 	{
 		int count = 1;
 		try {
-			count = std::stoi(std::string(csiData));
+			count = std::stoi(csiData);
 		} catch (...) {
 			count = 1;
 		}
-		StyledChar blankChar;
-		blankChar.ch = U' '; // space
-		blankChar.fg = o.procState.currFG;
-		blankChar.bg = o.procState.currBG;
-		blankChar.attr = o.procState.currAttr;
+		StyledChar blankChar = makeStyledChar(U' ');
 		StyledLine& line = o.screen[o.cursorY];
 		line.insert(line.begin() + o.cursorX, count, blankChar);
 
@@ -250,6 +304,30 @@ static void handleCSI() {
 	case 'l': 
 	case 'h': {
 		handleDECPrivateMode(csiData, type);
+		break;
+	}
+	case 'H': {
+		if (csiData.empty()) {
+			o.cursorX = 0;
+			o.cursorY = 0;
+			break;
+		}
+		auto params = split(csiData, ';');
+		try {
+			o.cursorX = std::stoi(params[0]);
+			o.cursorY = std::stoi(params[1]);
+		} catch (...) {
+		}
+	}
+	case 'J': {
+		int mode = 0;
+		if (!csiData.empty()) {
+			try {
+				mode = std::stoi(csiData);
+			} catch (...) {
+			}
+		}
+		handleEraseInDisplay(mode);
 		break;
 	}
 	default:
@@ -275,7 +353,7 @@ static void handleOSC() {
 
 	int paramNum = 0;
 	try {
-		paramNum = std::stoi(std::string(param));
+		paramNum = std::stoi(param);
 	} catch (...) {
 		return;
 	}
@@ -450,8 +528,7 @@ void appendNewLines(const std::vector<char>& buf) {
 			o.cursorY++;
 		} else {
 			// Append character with current style
-			currentLine.push_back(
-				StyledChar{cp, o.procState.currFG, o.procState.currBG, o.procState.currAttr});
+			currentLine.push_back(makeStyledChar(cp));
 		}
 	}
 
