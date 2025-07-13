@@ -11,6 +11,7 @@
 #include <string>
 #include <cstring>
 #include <cstdio>
+static void uploadAtlasTexture();
 
 struct Glyph {
 	float ax; // advance.x
@@ -70,6 +71,9 @@ static unsigned char atlasBitmap[ATLAS_WIDTH * ATLAS_HEIGHT];
 static GLuint atlasTexture = 0;
 static float fontSizeGlobal = 0.0f;
 static float scale = 0.0f;
+static int atlasX = 0;
+static int atlasY = 0;
+static int atlasRowHeight = 0;
 
 static std::unordered_map<uint32_t, Glyph> glyphs;
 
@@ -97,7 +101,7 @@ struct vec4 {
 	};
 };
 
-constexpr vec4 termColorToRGBA(TermColor color) {
+static constexpr vec4 termColorToRGBA(TermColor color) {
 	switch (color) {
 	case TermColor::Black:
 		return {0.0f, 0.0f, 0.0f, 1.0f};
@@ -155,78 +159,77 @@ static GLuint createShaderProgram() {
 	return program;
 }
 
-// Build or update atlas for the given new codepoints (append-only)
-static void buildAtlasIncremental(const std::vector<uint32_t>& newCodepoints) {
-	int x = 0, y = 0, rowHeight = 0;
+static bool tryPackGlyph(uint32_t cp) {
+	if (glyphs.find(cp) != glyphs.end())
+		return true;
 
-	// Find max y from existing glyphs to continue packing
-	if (!glyphs.empty()) {
-		// Find bottom row (max y + height)
-		// We'll repack all glyphs to keep things simple (optional optimization)
-		x = 0;
-		y = 0;
-		rowHeight = 0;
-		// We'll rebuild entire atlas for simplicity
-		memset(atlasBitmap, 0, sizeof(atlasBitmap));
-		std::unordered_map<uint32_t, Glyph> oldGlyphs = glyphs;
-		glyphs.clear();
+	int glyphIndex = stbtt_FindGlyphIndex(&fontInfo, cp);
+	if (glyphIndex == 0)
+		return false;
 
-		// Insert old glyphs first
-		for (auto& [cp, g] : oldGlyphs) {
-			int glyphIndex = stbtt_FindGlyphIndex(&fontInfo, cp);
-			permaAssertComment(glyphIndex != 0, "Glyph must exist");
+	int advance, lsb;
+	stbtt_GetGlyphHMetrics(&fontInfo, glyphIndex, &advance, &lsb);
 
-			int advance, lsb;
-			stbtt_GetGlyphHMetrics(&fontInfo, glyphIndex, &advance, &lsb);
+	int glyphW, glyphH, xoff, yoff;
+	unsigned char* bitmap = stbtt_GetGlyphBitmap(&fontInfo, scale, scale, glyphIndex, &glyphW, &glyphH, &xoff, &yoff);
 
-			int glyphW = (int)g.bw;
-			int glyphH = (int)g.bh;
-			int xoff = (int)g.bl;
-			int yoff = (int)g.bt;
-
-			if (x + glyphW >= ATLAS_WIDTH) {
-				x = 0;
-				y += rowHeight;
-				rowHeight = 0;
-			}
-
-			permaAssert(y + glyphH < ATLAS_HEIGHT);
-
-			// Bake bitmap again for old glyphs (since we cleared atlas)
-			unsigned char* bitmap =
-				stbtt_GetGlyphBitmap(&fontInfo, scale, scale, glyphIndex, &glyphW, &glyphH, &xoff, &yoff);
-
-			for (int i = 0; i < glyphH; i++) {
-				memcpy(atlasBitmap + (y + i) * ATLAS_WIDTH + x, bitmap + i * glyphW, glyphW);
-			}
-
-			Glyph newG{};
-			newG.ax = advance * scale;
-			newG.ay = 0;
-			newG.bw = (float)glyphW;
-			newG.bh = (float)glyphH;
-			newG.bl = (float)xoff;
-			newG.bt = (float)yoff;
-			newG.tx = (float)x / ATLAS_WIDTH;
-
-			glyphs[cp] = newG;
-
-			x += glyphW + 1;
-			if (glyphH > rowHeight)
-				rowHeight = glyphH;
-
-			stbtt_FreeBitmap(bitmap, nullptr);
-		}
+	if (atlasX + glyphW >= ATLAS_WIDTH) {
+		atlasX = 0;
+		atlasY += atlasRowHeight;
+		atlasRowHeight = 0;
 	}
 
-	// Now bake new glyphs
-	for (uint32_t cp : newCodepoints) {
-		if (glyphs.find(cp) != glyphs.end()) // already cached
-			continue;
+	if (atlasY + glyphH >= ATLAS_HEIGHT) {
+		stbtt_FreeBitmap(bitmap, nullptr);
+		return false; // atlas full
+	}
 
+	for (int i = 0; i < glyphH; i++) {
+		memcpy(atlasBitmap + (atlasY + i) * ATLAS_WIDTH + atlasX, bitmap + i * glyphW, glyphW);
+	}
+
+	Glyph g;
+	g.ax = advance * scale;
+	g.ay = 0;
+	g.bw = (float)glyphW;
+	g.bh = (float)glyphH;
+	g.bl = (float)xoff;
+	g.bt = (float)yoff;
+	g.tx = (float)atlasX / ATLAS_WIDTH;
+
+	glyphs[cp] = g;
+
+	atlasX += glyphW + 1;
+	atlasRowHeight = std::max(atlasRowHeight, glyphH);
+
+	stbtt_FreeBitmap(bitmap, nullptr);
+	return true;
+}
+
+static void loadGlyphIfNeeded(uint32_t cp) {
+	if (glyphs.find(cp) != glyphs.end())
+		return;
+
+	if (!tryPackGlyph(cp)) {
+		if (glyphs.find('?') == glyphs.end())
+			tryPackGlyph('?');
+		glyphs[cp] = glyphs.at('?');
+		return;
+	}
+
+	uploadAtlasTexture();
+}
+
+static void buildAtlasIncremental(const std::vector<uint32_t>& codepoints) {
+	int x = 0, y = 0, rowHeight = 0;
+
+	memset(atlasBitmap, 0, sizeof(atlasBitmap));
+	glyphs.clear();
+
+	for (uint32_t cp : codepoints) {
 		int glyphIndex = stbtt_FindGlyphIndex(&fontInfo, cp);
 		if (glyphIndex == 0) {
-			// Unknown glyph, skip here (handled in render)
+			// Skip missing glyphs
 			continue;
 		}
 
@@ -266,6 +269,13 @@ static void buildAtlasIncremental(const std::vector<uint32_t>& newCodepoints) {
 
 		stbtt_FreeBitmap(bitmap, nullptr);
 	}
+
+	uploadAtlasTexture();
+
+	// Initialize incremental packing state
+	atlasX = x;
+	atlasY = y;
+	atlasRowHeight = rowHeight;
 }
 
 static void uploadAtlasTexture() {
@@ -365,10 +375,7 @@ void render(StyledScreen& screen, int startLineIndex, int screenW, int screenH) 
 			if (stc.ch == '\r')
 				continue;
 
-			if (glyphs.find(stc.ch) == glyphs.end()) {
-				glyphs.emplace(stc.ch, glyphs.at('?'));
-			}
-
+			loadGlyphIfNeeded(stc.ch);
 			const Glyph& g = glyphs.at(stc.ch);
 
 			float x0 = penX + g.bl;
