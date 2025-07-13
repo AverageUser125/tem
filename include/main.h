@@ -16,8 +16,9 @@ struct TermFlags {
 		NONE = 0,
 		INPUT_LF_TO_CRLF = 1 << 0,
 		INPUT_ECHO = 1 << 1,
-		OUTPUT_WRAP_LINES = 1 << 2,
-		OUTPUT_ESCAPE_CODES = 1 << 3,
+		OUTPUT_RETURNS_INPUT = 1 << 2,
+		OUTPUT_WRAP_LINES = 1 << 3,
+		OUTPUT_ESCAPE_CODES = 1 << 4,
 	};
 
   private:
@@ -92,6 +93,7 @@ struct Data {
 	platform::Process* shell = nullptr;
 	float fontSize = 16.0f;
 	int cursorX = 0, cursorY = 0, inputCursor = 0;
+	int ignoreOutputCount = 0;
 	TermFlags flags;
 };
 

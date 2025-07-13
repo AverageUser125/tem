@@ -152,6 +152,9 @@ static void handleInput() {
 		o.command += '\n';
 		processInput();
 		o.shell->write(o.command.c_str(), o.command.size());
+		if (o.flags.has(TermFlags::OUTPUT_RETURNS_INPUT)) {
+			o.ignoreOutputCount = o.command.size();
+		}
 		o.command.clear();
 		o.cursorX = 0;
 		o.inputCursor = 0;
@@ -199,6 +202,7 @@ void startGame() {
 	o.flags = TermFlags::INPUT_ECHO | TermFlags::OUTPUT_ESCAPE_CODES;
 	#ifdef _WIN32
 	o.flags |= TermFlags::INPUT_LF_TO_CRLF;
-	#else 
+	#else
+	o.flags |= TermFlags::OUTPUT_RETURNS_INPUT;
 	#endif
 }

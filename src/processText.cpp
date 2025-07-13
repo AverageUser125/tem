@@ -158,21 +158,19 @@ static void handleDECPrivateMode(std::string_view params, char finalChar) {
 		return; // Not a DEC private mode sequence
 	}
 
-	// Extract mode number substring after '?'
 	std::string_view modeStr = params.substr(1);
 
 	int mode = 0;
 	try {
 		mode = std::stoi(std::string(modeStr));
 	} catch (...) {
-		return; // invalid number, ignore
+		return;
 	}
 
-	// Map mode number to TermFlag (reuse your existing function or inline)
 	TermFlags::Value flag = termFlagFromNumber(mode);
 
 	if (flag == TermFlags::NONE) {
-		return; // nothing to do for unknown modes
+		return;
 	}
 
 	if (finalChar == 'h') {
@@ -307,7 +305,10 @@ static void handleOSC() {
 }
 
 std::vector<char> processPartialOutputSegment(const std::vector<char>& inputSegment) {
-	o.procState.leftover.insert(o.procState.leftover.end(), inputSegment.begin(), inputSegment.end());
+	size_t skip = std::min(static_cast<size_t>(o.ignoreOutputCount), inputSegment.size());
+	o.ignoreOutputCount -= static_cast<int>(skip);
+	// Insert only the part that remains
+	o.procState.leftover.insert(o.procState.leftover.end(), inputSegment.begin() + skip, inputSegment.end());
 
 	std::vector<char> output;
 	size_t i = 0;
