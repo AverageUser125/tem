@@ -16,6 +16,25 @@ static void applySGRColor(std::string_view codeStr) {
 	} catch (...) {
 		return; // Ignore invalid input
 	}
+	switch (code) {
+	case 0:
+		o.procState.currFG = TermColor::Default;
+		o.procState.currBG = TermColor::Default;
+		o.procState.currAttr = TextAttribute::None;
+		return;
+	case 1:
+		o.procState.currAttr |= TextAttribute::Bold;
+		return;
+	case 3:
+		o.procState.currAttr |= TextAttribute::Italic;
+		return;
+	case 4:
+		o.procState.currAttr |=TextAttribute::Underline;
+		return;
+	case 7:
+		o.procState.currAttr |= TextAttribute::Inverse;
+		return;
+	}
 
 	int normalized = code;
 	if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107))
@@ -86,15 +105,14 @@ static void handleEscapeCode() {
 	char type = o.procState.escBuf.back();
 	o.procState.escBuf.pop_back();
 
-	std::cout << o.procState.escBuf;
-
 	switch (type) {
 	case 'm': {
 		applySGRColor(o.procState.escBuf);
 		break;
 	}
-	case 'H': {
-		break;
+	default:
+	{
+		std::cout << "[" << type << "]'" << o.procState.escBuf << "'\n";
 	}
 	}
 

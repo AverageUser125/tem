@@ -22,31 +22,42 @@ struct Glyph {
 	float tx; // x offset in atlas
 };
 
+static const char* fragmentShaderSrc = R"glsl(
+#version 330 core
+in vec2 frag_uv;
+in vec4 frag_color;
+out vec4 out_color;
+
+uniform sampler2D tex;
+
+void main() {
+	float alpha = texture(tex, frag_uv).r;
+	out_color = vec4(frag_color.rgb, frag_color.a * alpha);
+}
+)glsl";
+
 static const char* vertexShaderSrc = R"glsl(
 #version 330 core
+
 layout(location = 0) in vec2 in_pos;
 layout(location = 1) in vec2 in_uv;
+layout(location = 2) in vec4 in_color;
+
 out vec2 frag_uv;
-uniform vec2 screenSize; // screen width, height in pixels
+out vec4 frag_color;
+
+uniform vec2 screenSize;
+
 void main() {
     vec2 pos = in_pos / screenSize * 2.0 - 1.0;
     pos.y = -pos.y;
     gl_Position = vec4(pos, 0.0, 1.0);
     frag_uv = in_uv;
+    frag_color = in_color;
 }
+
 )glsl";
 
-static const char* fragmentShaderSrc = R"glsl(
-#version 330 core
-in vec2 frag_uv;
-out vec4 out_color;
-uniform sampler2D tex;
-uniform vec4 textColor;
-void main() {
-    float alpha = texture(tex, frag_uv).r;
-    out_color = vec4(textColor.rgb, textColor.a * alpha);
-}
-)glsl";
 
 static constexpr int ATLAS_WIDTH = 1024;
 static constexpr int ATLAS_HEIGHT = 1024;
@@ -71,9 +82,59 @@ static GLuint vao = 0, vbo = 0, shaderProgram = 0;
 // Vertex data: x, y, u, v
 struct Vertex {
 	float x, y, u, v;
+	float r, g, b, a;
 };
 
-static void checkGLError() { /* no-op */
+struct vec4 { 
+	union {
+		struct {
+			float x, y, z, w;
+		};
+
+		struct {
+			float r, g, b, a;
+		};
+	};
+};
+
+
+static vec4 termColorToRGBA(TermColor color) {
+	switch (color) {
+	case TermColor::Black:
+		return {0.0f, 0.0f, 0.0f, 1.0f};
+	case TermColor::Red:
+		return {0.8f, 0.0f, 0.0f, 1.0f};
+	case TermColor::Green:
+		return {0.0f, 0.8f, 0.0f, 1.0f};
+	case TermColor::Yellow:
+		return {0.8f, 0.8f, 0.0f, 1.0f};
+	case TermColor::Blue:
+		return {0.0f, 0.0f, 0.8f, 1.0f};
+	case TermColor::Magenta:
+		return {0.8f, 0.0f, 0.8f, 1.0f};
+	case TermColor::Cyan:
+		return {0.0f, 0.8f, 0.8f, 1.0f};
+	case TermColor::White:
+		return {0.8f, 0.8f, 0.8f, 1.0f};
+	case TermColor::BrightBlack:
+		return {0.2f, 0.2f, 0.2f, 1.0f};
+	case TermColor::BrightRed:
+		return {1.0f, 0.0f, 0.0f, 1.0f};
+	case TermColor::BrightGreen:
+		return {0.0f, 1.0f, 0.0f, 1.0f};
+	case TermColor::BrightYellow:
+		return {1.0f, 1.0f, 0.0f, 1.0f};
+	case TermColor::BrightBlue:
+		return {0.0f, 0.0f, 1.0f, 1.0f};
+	case TermColor::BrightMagenta:
+		return {1.0f, 0.0f, 1.0f, 1.0f};
+	case TermColor::BrightCyan:
+		return {0.0f, 1.0f, 1.0f, 1.0f};
+	case TermColor::BrightWhite:
+		return {1.0f, 1.0f, 1.0f, 1.0f};
+	default:
+		return {1.0f, 1.0f, 1.0f, 1.0f};
+	}
 }
 
 static GLuint compileShader(GLenum type, const char* src) {
@@ -277,8 +338,6 @@ void render(StyledScreen& screen, int startLineIndex, int screenW, int screenH) 
 
 	GLint screenSizeLoc = glGetUniformLocation(shaderProgram, "screenSize");
 	glUniform2f(screenSizeLoc, float(screenW), float(screenH));
-	GLint textColorLoc = glGetUniformLocation(shaderProgram, "textColor");
-	glUniform4f(textColorLoc, 1, 1, 1, 1);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, atlasTexture);
@@ -292,6 +351,8 @@ void render(StyledScreen& screen, int startLineIndex, int screenW, int screenH) 
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, x));
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, u));
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, r));
 
 	std::vector<Vertex> vertices;
 	float lineHeight = (ascent - descent + lineGap) * scale;
@@ -321,14 +382,14 @@ void render(StyledScreen& screen, int startLineIndex, int screenW, int screenH) 
 			float tx1 = tx0 + g.bw / ATLAS_WIDTH;
 			float ty0 = 0.0f;
 			float ty1 = g.bh / ATLAS_HEIGHT;
+			vec4 color = termColorToRGBA(stc.fg);
 
-			vertices.push_back({x0, y0, tx0, ty0});
-			vertices.push_back({x1, y0, tx1, ty0});
-			vertices.push_back({x0, y1, tx0, ty1});
-
-			vertices.push_back({x1, y0, tx1, ty0});
-			vertices.push_back({x1, y1, tx1, ty1});
-			vertices.push_back({x0, y1, tx0, ty1});
+			vertices.push_back({x0, y0, tx0, ty0, color.r, color.g, color.b, color.a});
+			vertices.push_back({x1, y0, tx1, ty0, color.r, color.g, color.b, color.a});
+			vertices.push_back({x0, y1, tx0, ty1, color.r, color.g, color.b, color.a});
+			vertices.push_back({x1, y0, tx1, ty0, color.r, color.g, color.b, color.a});
+			vertices.push_back({x1, y1, tx1, ty1, color.r, color.g, color.b, color.a});
+			vertices.push_back({x0, y1, tx0, ty1, color.r, color.g, color.b, color.a});
 
 			penX += g.ax;
 		}
@@ -387,11 +448,9 @@ void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int sc
 	glUseProgram(shaderProgram);
 
 	GLint screenSizeLoc = glGetUniformLocation(shaderProgram, "screenSize");
-	GLint textColorLoc = glGetUniformLocation(shaderProgram, "textColor");
 	GLint texLoc = glGetUniformLocation(shaderProgram, "tex");
 
 	glUniform2f(screenSizeLoc, float(screenW), float(screenH));
-	glUniform4f(textColorLoc, 1, 1, 1, 1);
 	glUniform1i(texLoc, 0);
 
 	glActiveTexture(GL_TEXTURE0);

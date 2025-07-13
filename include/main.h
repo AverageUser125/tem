@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <string_view>
 #include "bitflags.hpp"
 
 namespace platform
@@ -66,6 +67,7 @@ enum class ProcState : uint8_t {
 struct StyledChar {
 	char32_t ch; // Unicode codepoint
 	TermColor fg = TermColor::Default;
+	// TODO: Add background support
 	TermColor bg = TermColor::Default;
 	TextAttribute attr = TextAttribute::None;
 };
