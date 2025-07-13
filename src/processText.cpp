@@ -9,24 +9,6 @@
 #include <cstdio>
 #include <cstring>
 
-enum class ProcState : uint8_t {
-	None,
-	SawESC,
-	SawESCBracket,
-	SawCR,
-};
-
-struct InputProcessorState {
-	std::string leftover;
-	std::string escBuf;
-	ProcState state = ProcState::None;
-	TermColor currFG = TermColor::Default;
-	TermColor currBG = TermColor::Default;
-	TextAttribute currAttr = TextAttribute::None;
-};
-
-static InputProcessorState procState;
-
 static void applySGRColor(std::string_view codeStr) {
 	int code = 0;
 	try {
@@ -95,20 +77,20 @@ static void applySGRColor(std::string_view codeStr) {
 	}
 
 	if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97))
-		procState.currFG = color;
+		o.procState.currFG = color;
 	else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107))
-		procState.currBG = color;
+		o.procState.currBG = color;
 }
 
 static void handleEscapeCode() {
-	char type = procState.escBuf.back();
-	procState.escBuf.pop_back();
+	char type = o.procState.escBuf.back();
+	o.procState.escBuf.pop_back();
 
-	std::cout << procState.escBuf;
+	std::cout << o.procState.escBuf;
 
 	switch (type) {
 	case 'm': {
-		applySGRColor(procState.escBuf);
+		applySGRColor(o.procState.escBuf);
 		break;
 	}
 	case 'H': {
@@ -116,28 +98,28 @@ static void handleEscapeCode() {
 	}
 	}
 
-	procState.escBuf.clear();
+	o.procState.escBuf.clear();
 }
 
 std::vector<char> processPartialOutputSegment(const std::vector<char>& inputSegment) {
-	procState.leftover.insert(procState.leftover.end(), inputSegment.begin(), inputSegment.end());
+	o.procState.leftover.insert(o.procState.leftover.end(), inputSegment.begin(), inputSegment.end());
 
 	std::vector<char> output;
 	size_t i = 0;
 
-	while (i < procState.leftover.size()) {
-		char c = procState.leftover[i];
+	while (i < o.procState.leftover.size()) {
+		char c = o.procState.leftover[i];
 
-		switch (procState.state) {
+		switch (o.procState.state) {
 		case ProcState::None:
 			switch (c) {
 			case '\033': // ESC
-				procState.state = ProcState::SawESC;
+				o.procState.state = ProcState::SawESC;
 				i++;
 				break;
 
 			case '\r': // Carriage Return
-				procState.state = ProcState::SawCR;
+				o.procState.state = ProcState::SawCR;
 				i++;
 				break;
 
@@ -172,22 +154,22 @@ std::vector<char> processPartialOutputSegment(const std::vector<char>& inputSegm
 				output.push_back('\r'); // Lone CR
 										// reprocess current character
 			}
-			procState.state = ProcState::None;
+			o.procState.state = ProcState::None;
 			break;
 
 		case ProcState::SawESC:
 			if (c == '[') {
-				procState.state = ProcState::SawESCBracket;
+				o.procState.state = ProcState::SawESCBracket;
 			} else {
-				procState.state = ProcState::None;
+				o.procState.state = ProcState::None;
 			}
 			i++;
 			break;
 
 		case ProcState::SawESCBracket:
-			procState.escBuf += c;
+			o.procState.escBuf += c;
 			if ((unsigned char)c >= 0x40 && (unsigned char)c <= 0x7E) {
-				procState.state = ProcState::None;
+				o.procState.state = ProcState::None;
 				handleEscapeCode();
 			}
 			i++;
@@ -196,7 +178,7 @@ std::vector<char> processPartialOutputSegment(const std::vector<char>& inputSegm
 	}
 
 	if (i > 0) {
-		procState.leftover.erase(procState.leftover.begin(), procState.leftover.begin() + i);
+		o.procState.leftover.erase(o.procState.leftover.begin(), o.procState.leftover.begin() + i);
 	}
 
 	return output;
@@ -229,7 +211,7 @@ void appendNewLines(const std::vector<char>& buf) {
 		} else {
 			// Append character with current style
 			currentLine.push_back(
-				StyledChar{cp, procState.currFG, procState.currBG, procState.currAttr});
+				StyledChar{cp, o.procState.currFG, o.procState.currBG, o.procState.currAttr});
 		}
 	}
 
