@@ -291,7 +291,7 @@ void startRender(float fontSize) {
 	fontSizeGlobal = fontSize;
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	FILE* f = fopen(RESOURCES_PATH "FiraCode-Regular.ttf", "rb");
+	FILE* f = fopen(RESOURCES_PATH "MesloLGMNerdFontPropo-Regular.ttf", "rb");
 	permaAssertComment(f, "Failed to open font file");
 	fseek(f, 0, SEEK_END);
 	size_t size = ftell(f);
