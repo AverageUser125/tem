@@ -8,6 +8,7 @@
 #include <string>
 #include <cstdio>
 #include <cstring>
+#include <platform/window.h>
 
 static std::vector<std::string_view> split(const std::string_view& str, char delimiter) {
 	std::vector<std::string_view> parts;
@@ -168,22 +169,7 @@ static void handleDECPrivateMode(std::string_view params, char finalChar) {
 	}
 
 	// Map mode number to TermFlag (reuse your existing function or inline)
-	TermFlags::Value flag = TermFlags::NONE;
-	switch (mode) {
-	case 7:
-		flag = TermFlags::OUTPUT_WRAP_LINES;
-		break;
-	case 1:
-		flag = TermFlags::INPUT_LF_TO_CRLF;
-		break;
-	case 2:
-		flag = TermFlags::INPUT_ECHO;
-		break;
-	// Add other cases or comment for unknown modes
-	default:
-		flag = TermFlags::NONE;
-		break;
-	}
+	TermFlags::Value flag = termFlagFromNumber(mode);
 
 	if (flag == TermFlags::NONE) {
 		return; // nothing to do for unknown modes
@@ -198,25 +184,26 @@ static void handleDECPrivateMode(std::string_view params, char finalChar) {
 	}
 }
 
-static void handleEscapeCode() {
-	char type = o.procState.escBuf.back();
-	o.procState.escBuf.pop_back();
-
+static void handleCSI() {
+	std::string& csiData = o.procState.escBuf;
+	char type = csiData.back();
+	csiData.pop_back();
+	
 	switch (type) {
 	case 'm': {
-		applySGRColor(o.procState.escBuf);
+		applySGRColor(csiData);
 		break;
 	}
 	case 'G':
 	{
-		int col = std::stoi(o.procState.escBuf);
+		int col = std::stoi(csiData);
 		o.cursorX = col;
 		break;
 	}
 	case 'A':
 	{
 		// TODO: more protections
-		int moveUpBy = std::stoi(o.procState.escBuf);
+		int moveUpBy = std::stoi(csiData);
 		if (o.cursorY > moveUpBy) {
 			o.cursorY -= moveUpBy;		
 		} else {
@@ -227,20 +214,20 @@ static void handleEscapeCode() {
 	case 'B':
 	{
 		// TODO: more protections
-		int moveDownBy = std::stoi(o.procState.escBuf);
+		int moveDownBy = std::stoi(csiData);
 		o.cursorY += moveDownBy;
 		break;
 	}
 	case 'C':
 	{
 		// TODO: more protections
-		int moveForwardBy = std::stoi(o.procState.escBuf);
+		int moveForwardBy = std::stoi(csiData);
 		o.cursorX += moveForwardBy;
 		break;
 	}
 	case 'D': {
 		// TODO: more protections
-		int moveBackwardsBy = std::stoi(o.procState.escBuf);
+		int moveBackwardsBy = std::stoi(csiData);
 		o.cursorX -= moveBackwardsBy;
 		break;
 	}
@@ -248,7 +235,7 @@ static void handleEscapeCode() {
 	{
 		int count = 1;
 		try {
-			count = std::stoi(std::string(o.procState.escBuf));
+			count = std::stoi(std::string(csiData));
 		} catch (...) {
 			count = 1;
 		}
@@ -264,16 +251,59 @@ static void handleEscapeCode() {
 	}
 	case 'l': 
 	case 'h': {
-		handleDECPrivateMode(o.procState.escBuf, type);
+		handleDECPrivateMode(csiData, type);
 		break;
 	}
 	default:
 	{
-		std::cout << "[" << type << "]'" << o.procState.escBuf << "'\n";
+		std::cout << "[" << type << "]'" << csiData << "'\n";
 	}
 	}
 
-	o.procState.escBuf.clear();
+	csiData.clear();
+}
+
+static void handleOSC() {
+	std::string& oscData = o.procState.escBuf;
+	size_t semicolonPos = oscData.find(';');
+	if (semicolonPos == std::string_view::npos) {
+		// No parameter found — treat whole as default OSC command (e.g., title)
+		platform::setWindowTitle(oscData.c_str());
+		return;
+	}
+
+	std::string_view param = oscData.substr(0, semicolonPos);
+	std::string_view content = oscData.substr(semicolonPos + 1);
+
+	int paramNum = 0;
+	try {
+		paramNum = std::stoi(std::string(param));
+	} catch (...) {
+		return;
+	}
+
+	switch (paramNum) {
+	case 0:
+	case 2:
+		// Set both icon name and window title (0) or window title only (2)
+		platform::setWindowTitle(content.data());
+		break;
+
+	case 1:
+		// Set icon name only - you could implement if you want
+		// setIconName(std::string(content));
+		break;
+
+	case 52:
+		// Clipboard operations (OSC 52) could be handled here
+		// handleClipboard(content);
+		break;
+
+	default:
+		// Unknown/unhandled OSC command — ignore or log
+		break;
+	}
+	oscData.clear();
 }
 
 std::vector<char> processPartialOutputSegment(const std::vector<char>& inputSegment) {
@@ -334,22 +364,56 @@ std::vector<char> processPartialOutputSegment(const std::vector<char>& inputSegm
 
 		case ProcState::SawESC:
 			if (c == '[') {
-				o.procState.state = ProcState::SawESCBracket;
+				o.procState.state = ProcState::SawCSIBracket;
+			} else if (c == ']') {
+				o.procState.state = ProcState::SawOSCBracket;
 			} else {
 				o.procState.state = ProcState::None;
 			}
 			i++;
 			break;
 
-		case ProcState::SawESCBracket:
+		case ProcState::SawCSIBracket: {
 			o.procState.escBuf += c;
 			if ((unsigned char)c >= 0x40 && (unsigned char)c <= 0x7E) {
 				o.procState.state = ProcState::None;
-				handleEscapeCode();
+				handleCSI();
 			}
 			i++;
 			break;
 		}
+		case ProcState::SawOSCBracket: {
+			if (c == '\033') {
+				o.procState.state = ProcState::SawOSCBracketAndESC; // saw ESC inside OSC
+			} else if (c == 0x07) {
+				// BEL terminator found — end of OSC
+				o.procState.state = ProcState::None;
+				handleOSC();
+				o.procState.escBuf.clear();
+			} else {
+				o.procState.escBuf += c;
+			}
+			i++;
+			break;
+		}
+
+		case ProcState::SawOSCBracketAndESC: {
+			if (c == '\\') {
+				// ESC \ terminator found — end of OSC
+				o.procState.state = ProcState::None;
+				handleOSC();
+				o.procState.escBuf.clear();
+			} else {
+				// False alarm, ESC wasn't terminator - push ESC + current char to buffer
+				o.procState.escBuf += '\033';
+				o.procState.escBuf += c;
+				o.procState.state = ProcState::SawOSCBracket;
+			}
+			i++;
+			break;
+		}
+		}
+
 	}
 
 	if (i > 0) {

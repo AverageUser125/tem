@@ -22,4 +22,6 @@ void showMouse(bool show);
 bool hasFocused();
 bool mouseMoved();
 
+void setWindowTitle(const char* title);
+
 }; // namespace platform

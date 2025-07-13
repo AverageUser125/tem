@@ -216,6 +216,10 @@ bool mouseMoved() {
 	return mouseMovedFlag;
 }
 
+void setWindowTitle(const char* title) {
+	glfwSetWindowTitle(wind, title);
+}
+
 }; // namespace platform
 
 #pragma endregion

@@ -60,7 +60,9 @@ struct TextAttribute {
 enum class ProcState : uint8_t {
 	None,
 	SawESC,
-	SawESCBracket,
+	SawCSIBracket,
+	SawOSCBracket,
+	SawOSCBracketAndESC,
 	SawCR,
 };
 
