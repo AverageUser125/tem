@@ -25,7 +25,9 @@ static void incInpCur(int num) {
 		newInp = 0;
 	else {
 		int len = get_length(o.command);
-		if (newInp > len) {
+		if (len == -1)
+			newInp = 1;
+		else if (newInp > len) {
 			newInp = len;
 		}
 	}
@@ -67,7 +69,8 @@ static void insertCodePointAtCursor(char32_t cp) {
 
 	char buf[4];
 	int bytesWritten = encode_utf8(cp, buf);
-	o.command.insert(o.inputCursor, buf, bytesWritten);
+	size_t index = charIndexToByteOffset(o.command, o.inputCursor);
+	o.command.insert(index, buf, bytesWritten);
 }
 
 static void deleteCharBeforeCursor() {
