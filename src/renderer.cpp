@@ -266,11 +266,11 @@ void startRender(float fontSize) {
 	charHeight = (float)(ascent - descent + lineGap) * scale;
 }
 
-void render(const std::vector<std::string>& lines, int startLineIndex, int screenW, int screenH) {
+void render(StyledScreen& screen, int startLineIndex, int screenW, int screenH) {
 	glViewport(0, 0, screenW, screenH);
 	glClear(GL_COLOR_BUFFER_BIT);
 	permaAssert(fontSizeGlobal > 0.0f);
-	if (lines.empty() || startLineIndex >= (int)lines.size())
+	if (screen.empty() || startLineIndex >= (int)screen.size())
 		return;
 
 	glUseProgram(shaderProgram);
@@ -297,27 +297,19 @@ void render(const std::vector<std::string>& lines, int startLineIndex, int scree
 	float lineHeight = (ascent - descent + lineGap) * scale;
 	float yStart = 0;
 
-	for (int lineIndex = startLineIndex; lineIndex < (int)lines.size(); ++lineIndex) {
-		const char* p = lines[lineIndex].c_str();
-		const char* end = p + lines[lineIndex].size();
-
+	for (int lineIndex = startLineIndex; lineIndex < (int)screen.size(); ++lineIndex) {
 		float penX = 0;
 		float baselineY = yStart + ascent * scale + (lineIndex - startLineIndex) * lineHeight;
 
-		while (p < end) {
-			uint32_t cp = 0;
-			int len = decode_utf8(p, &cp);
-			if (len <= 0)
-				break;
-			p += len;
-			if (cp == '\r')
+		for (StyledChar& stc : screen[lineIndex]) {
+			if (stc.ch == '\r')
 				continue;
 
-			if (glyphs.find(cp) == glyphs.end()) {
-				glyphs.emplace(cp, glyphs.at('?'));
+			if (glyphs.find(stc.ch) == glyphs.end()) {
+				glyphs.emplace(stc.ch, glyphs.at('?'));
 			}
 
-			const Glyph& g = glyphs.at(cp);
+			const Glyph& g = glyphs.at(stc.ch);
 
 			float x0 = penX + g.bl;
 			float y0 = baselineY + g.bt;

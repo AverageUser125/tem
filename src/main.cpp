@@ -14,8 +14,8 @@ static void incCurX(int num) {
 	int newX = o.cursorX + num;
 	if (newX < 0)
 		newX = 0;
-	else if (newX > get_length(o.lines[o.cursorY]))
-		newX = int(get_length(o.lines[o.cursorY]));
+	else if (newX > o.screen[o.cursorY].size())
+		newX = int(o.screen[o.cursorY].size());
 	o.cursorX = newX;
 }
 
@@ -23,14 +23,18 @@ static void incInpCur(int num) {
 	int newInp = o.inputCursor + num;
 	if (newInp < 0)
 		newInp = 0;
-	else if (newInp > get_length(o.command))
-		newInp = int(get_length(o.command));
+	else {
+		int len = get_length(o.command);
+		if (newInp > len) {
+			newInp = len;
+		}
+	}
 	o.inputCursor = newInp;
 }
 
 static void ensureLineExists(int y) {
-	while ((int)o.lines.size() <= y)
-		o.lines.emplace_back();
+	while ((int)o.screen.size() <= y)
+		o.screen.emplace_back();
 }
 
 static size_t charIndexToByteOffset(const std::string& utf8line, int charIndex) {
@@ -52,19 +56,18 @@ static size_t charIndexToByteOffset(const std::string& utf8line, int charIndex) 
 
 static void insertCodePointAtCursor(char32_t cp) {
 	ensureLineExists(o.cursorY);
-	std::string& line = o.lines[o.cursorY];
-	size_t byteOffset = charIndexToByteOffset(line, o.cursorX);
+	StyledLine& line = o.screen[o.cursorY];
 
 	// encode cp to UTF-8 bytes using your encode_utf8 function
-	char buf[4];
-	int bytesWritten = encode_utf8(cp, buf);
+
 	if (o.flags.has(TermFlags::INPUT_ECHO)) {
-		line.insert(byteOffset, buf, bytesWritten);
-		o.cursorX++;
+		line.insert(line.begin() + o.cursorX, {cp});
+		incCurX(1);
 	}
 
-	byteOffset = charIndexToByteOffset(o.command, o.inputCursor);
-	o.command.insert(byteOffset, buf, bytesWritten);
+	char buf[4];
+	int bytesWritten = encode_utf8(cp, buf);
+	o.command.insert(o.inputCursor, buf, bytesWritten);
 }
 
 static void deleteCharBeforeCursor() {
@@ -83,12 +86,10 @@ static void deleteCharBeforeCursor() {
 	// Remove from visible line if echo is enabled
 	if (o.flags.has(TermFlags::INPUT_ECHO)) {
 		ensureLineExists(o.cursorY);
-		std::string& line = o.lines[o.cursorY];
-		size_t prevOffset = charIndexToByteOffset(line, o.cursorX - 1);
-		uint32_t cp;
-		int len = decode_utf8(line.data() + prevOffset, &cp);
-		if (len > 0)
-			line.erase(prevOffset, len);
+		StyledLine& line = o.screen[o.cursorY];
+		if (o.cursorX >= 1) {
+			line.erase(line.begin() + o.cursorX - 1);
+		}
 	}
 
 	incInpCur(-1);
@@ -149,18 +150,18 @@ bool gameLogic(float deltaTime) {
 	o.shell->update();
 	auto& buf = o.shell->getOutputBuffer();
 	if (!buf.empty()) {
-		auto cleaned = processPartialInputSegment(buf);
+		auto cleaned = processPartialOutputSegment(buf);
 		appendNewLines(cleaned);
 		buf.clear();
 	}
 
 	int scrollLineStart = 0;
-	int totalLines = int(o.lines.size());
+	int totalLines = int(o.screen.size());
 	int visibleLines = screenH / o.fontSize;
 	if (totalLines > visibleLines)
 		scrollLineStart = totalLines - visibleLines;
 
-	render(o.lines, scrollLineStart, screenW, screenH);
+	render(o.screen, scrollLineStart, screenW, screenH);
 	renderCursor(o.cursorX, (o.cursorY - scrollLineStart), deltaTime, screenW, screenH);
 	return o.shell->isRunning();
 }

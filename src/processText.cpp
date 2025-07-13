@@ -1,8 +1,13 @@
+#include <cstdint>
 #include "main.h"
 #include "processText.h"
 #include "utf8.h"
 #include "bitflags.hpp"
 #include <string_view>
+#include <iostream>
+#include <string>
+#include <cstdio>
+#include <cstring>
 
 enum class ProcState : uint8_t {
 	None,
@@ -13,17 +18,97 @@ enum class ProcState : uint8_t {
 
 struct InputProcessorState {
 	std::string leftover;
-	std::string escParamBuffer;
+	std::string escBuf;
 	ProcState state = ProcState::None;
+	TermColor currFG = TermColor::Default;
+	TermColor currBG = TermColor::Default;
+	TextAttribute currAttr = TextAttribute::None;
 };
 
-static InputProcessorState processorState;
+static InputProcessorState procState;
+
+static void applySGRColor(std::string_view codeStr) {
+	int code = 0;
+	try {
+		code = std::stoi(std::string(codeStr));
+	} catch (...) {
+		return; // Ignore invalid input
+	}
+
+	int normalized = code;
+	if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107))
+		normalized -= 10;
+
+	TermColor color;
+	switch (normalized) {
+	case 30:
+		color = TermColor::Black;
+		break;
+	case 31:
+		color = TermColor::Red;
+		break;
+	case 32:
+		color = TermColor::Green;
+		break;
+	case 33:
+		color = TermColor::Yellow;
+		break;
+	case 34:
+		color = TermColor::Blue;
+		break;
+	case 35:
+		color = TermColor::Magenta;
+		break;
+	case 36:
+		color = TermColor::Cyan;
+		break;
+	case 37:
+		color = TermColor::White;
+		break;
+	case 90:
+		color = TermColor::BrightBlack;
+		break;
+	case 91:
+		color = TermColor::BrightRed;
+		break;
+	case 92:
+		color = TermColor::BrightGreen;
+		break;
+	case 93:
+		color = TermColor::BrightYellow;
+		break;
+	case 94:
+		color = TermColor::BrightBlue;
+		break;
+	case 95:
+		color = TermColor::BrightMagenta;
+		break;
+	case 96:
+		color = TermColor::BrightCyan;
+		break;
+	case 97:
+		color = TermColor::BrightWhite;
+		break;
+	default:
+		color = TermColor::Default;
+		break;
+	}
+
+	if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97))
+		procState.currFG = color;
+	else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107))
+		procState.currBG = color;
+}
 
 static void handleEscapeCode() {
-	char type = processorState.escParamBuffer.pop_back();
+	char type = procState.escBuf.back();
+	procState.escBuf.pop_back();
+
+	std::cout << procState.escBuf;
 
 	switch (type) {
 	case 'm': {
+		applySGRColor(procState.escBuf);
 		break;
 	}
 	case 'H': {
@@ -31,33 +116,33 @@ static void handleEscapeCode() {
 	}
 	}
 
-	processorState.escParamBuffer.clear();
+	procState.escBuf.clear();
 }
 
-std::vector<char> processPartialInputSegment(const std::vector<char>& inputSegment) {
-	processorState.leftover.insert(processorState.leftover.end(), inputSegment.begin(), inputSegment.end());
+std::vector<char> processPartialOutputSegment(const std::vector<char>& inputSegment) {
+	procState.leftover.insert(procState.leftover.end(), inputSegment.begin(), inputSegment.end());
 
 	std::vector<char> output;
 	size_t i = 0;
 
-	while (i < processorState.leftover.size()) {
-		char c = processorState.leftover[i];
+	while (i < procState.leftover.size()) {
+		char c = procState.leftover[i];
 
-		switch (processorState.state) {
+		switch (procState.state) {
 		case ProcState::None:
 			switch (c) {
 			case '\033': // ESC
-				processorState.state = ProcState::SawESC;
+				procState.state = ProcState::SawESC;
 				i++;
 				break;
 
 			case '\r': // Carriage Return
-				processorState.state = ProcState::SawCR;
+				procState.state = ProcState::SawCR;
 				i++;
 				break;
 
 			case '\f': // Form Feed
-				o.lines.clear();
+				o.screen.clear();
 				o.cursorX = 0;
 				o.cursorY = 0;
 				i++;
@@ -87,22 +172,22 @@ std::vector<char> processPartialInputSegment(const std::vector<char>& inputSegme
 				output.push_back('\r'); // Lone CR
 										// reprocess current character
 			}
-			processorState.state = ProcState::None;
+			procState.state = ProcState::None;
 			break;
 
 		case ProcState::SawESC:
 			if (c == '[') {
-				processorState.state = ProcState::SawESCBracket;
+				procState.state = ProcState::SawESCBracket;
 			} else {
-				processorState.state = ProcState::None;
+				procState.state = ProcState::None;
 			}
 			i++;
 			break;
 
 		case ProcState::SawESCBracket:
-			processorState.escParamBuffer += c;
+			procState.escBuf += c;
 			if ((unsigned char)c >= 0x40 && (unsigned char)c <= 0x7E) {
-				processorState.state = ProcState::None;
+				procState.state = ProcState::None;
 				handleEscapeCode();
 			}
 			i++;
@@ -111,7 +196,7 @@ std::vector<char> processPartialInputSegment(const std::vector<char>& inputSegme
 	}
 
 	if (i > 0) {
-		processorState.leftover.erase(processorState.leftover.begin(), processorState.leftover.begin() + i);
+		procState.leftover.erase(procState.leftover.begin(), procState.leftover.begin() + i);
 	}
 
 	return output;
@@ -120,10 +205,12 @@ std::vector<char> processPartialInputSegment(const std::vector<char>& inputSegme
 void appendNewLines(const std::vector<char>& buf) {
 	if (buf.empty())
 		return;
+
 	const char* bufData = buf.data();
 	const char* bufEnd = bufData + buf.size();
-	const char* lineStart = bufData;
 	const char* iter = bufData;
+
+	StyledLine currentLine;
 
 	while (iter < bufEnd) {
 		uint32_t cp;
@@ -131,29 +218,26 @@ void appendNewLines(const std::vector<char>& buf) {
 		if (len <= 0 || iter + len > bufEnd)
 			break;
 
-		if (cp == '\n') {
-			// Push the line up to but not including '\n'
-			o.lines.emplace_back(lineStart, iter - lineStart);
-			iter += len;
-			lineStart = iter;
+		iter += len;
 
+		if (cp == '\n') {
+			// Commit the current line and reset
+			o.screen.push_back(std::move(currentLine));
+			currentLine.clear();
 			o.cursorX = 0;
 			o.cursorY++;
 		} else {
-			iter += len;
+			// Append character with current style
+			currentLine.push_back(
+				StyledChar{cp, procState.currFG, procState.currBG, procState.currAttr});
 		}
 	}
 
-	// Handle any partial line at the end (no trailing '\n')
-	if (lineStart < iter) {
-		std::string partial(lineStart, iter - lineStart);
-		if (!o.lines.empty() && !o.lines.back().empty()) {
-			o.lines.back() += partial;
-		} else {
-			o.lines.emplace_back(std::move(partial));
-		}
-		o.cursorX = get_length(o.lines.back());
-		o.cursorY = int(o.lines.size() - 1);
+	// Save partial line (if any)
+	if (!currentLine.empty()) {
+		o.screen.push_back(std::move(currentLine));
+		o.cursorX = int(o.screen.back().size());
+		o.cursorY = int(o.screen.size() - 1);
 	}
 }
 

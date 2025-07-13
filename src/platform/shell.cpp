@@ -15,6 +15,7 @@
 #include <sys/wait.h>
 #include <csignal>
 #include <cstring>
+#include <pty.h>
 #endif
 
 namespace platform
@@ -116,59 +117,40 @@ class WinProcess : public Process {
 class PosixProcess : public Process {
 	std::vector<char> buffer;
 	int pid = -1;
-	int writeFD = -1;
-	int readFD = -1;
+	int masterFD = -1;
 
   public:
 	PosixProcess(std::string_view cmd) {
-		int pipeIn[2], pipeOut[2];
+		struct winsize ws = {24, 80, 0, 0}; // fake terminal size
 
-		permaAssertComment(pipe(pipeIn) != -1, "pipe(pipeIn) failed");
-		permaAssertComment(pipe(pipeOut) != -1, "pipe(pipeOut) failed");
-
-		pid = fork();
-		permaAssertComment(pid != -1, "fork() failed");
+		pid = forkpty(&masterFD, nullptr, nullptr, &ws);
+		permaAssertComment(pid != -1, "forkpty() failed");
 
 		if (pid == 0) {
 			// Child process
-			dup2(pipeIn[0], STDIN_FILENO);
-			dup2(pipeOut[1], STDOUT_FILENO);
-			dup2(pipeOut[1], STDERR_FILENO);
-			close(pipeIn[1]);
-			close(pipeOut[0]);
-
-			// Try to exec the given command
 			execl(cmd.data(), cmd.data(), (char*)nullptr);
-
-			// If we reach here, execl failed
-			_exit(127); // Indicate exec failure
+			_exit(127);
 		}
 
 		// Parent process
-		close(pipeIn[0]);
-		close(pipeOut[1]);
-		writeFD = pipeIn[1];
-		readFD = pipeOut[0];
+		int flags = fcntl(masterFD, F_GETFL, 0);
+		permaAssertComment(flags != -1, "fcntl(F_GETFL) failed");
+		permaAssertComment(fcntl(masterFD, F_SETFL, flags | O_NONBLOCK) != -1, "fcntl(F_SETFL) failed");
+
 		buffer.reserve(4096);
 
-		// Make readFD non-blocking
-		int flags = fcntl(readFD, F_GETFL, 0);
-		permaAssertComment(flags != -1, "fcntl(F_GETFL) failed");
-		permaAssertComment(fcntl(readFD, F_SETFL, flags | O_NONBLOCK) != -1, "fcntl(F_SETFL) failed");
-
-		// Check if child exited immediately (exec failure)
 		int status;
 		pid_t result = waitpid(pid, &status, WNOHANG);
-		permaAssertComment(result == 0, "Process exited early (exec failed or crashed)");
+		permaAssertComment(result == 0, "Process exited early");
 	}
 
 	void write(const char* data, size_t len) override {
-		::write(writeFD, data, len);
+		::write(masterFD, data, len);
 	}
 
 	void update() override {
 		char temp[1024];
-		ssize_t count = ::read(readFD, temp, sizeof(temp));
+		ssize_t count = ::read(masterFD, temp, sizeof(temp));
 		if (count > 0) {
 			buffer.insert(buffer.end(), temp, temp + count);
 		}
@@ -192,10 +174,8 @@ class PosixProcess : public Process {
 
 	~PosixProcess() override {
 		terminate();
-		if (writeFD != -1)
-			close(writeFD);
-		if (readFD != -1)
-			close(readFD);
+		if (masterFD != -1)
+			close(masterFD);
 	}
 };
 

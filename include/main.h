@@ -1,7 +1,10 @@
 #pragma once
 #include <vector>
 #include <string>
+#include <cstdint>
 #include "bitflags.hpp"
+#include "renderer.h"
+
 namespace platform
 {
 class Process;
@@ -18,12 +21,12 @@ class TermFlags {
 	};
 
   private:
-	DEFINE_BITFLAGS(TermFlags)
+	DEFINE_BITFLAGS(TermFlags);
 };
 
 
 struct Data {
-	std::vector<std::string> lines;
+	StyledScreen screen;
 	std::string command;
 	platform::Process* shell = nullptr;
 	float fontSize = 16.0f;
