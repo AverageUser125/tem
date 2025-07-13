@@ -192,11 +192,11 @@ void getWindowSize(int* x, int *y) {
 }
 
 // Should probably be in 'input.cpp' but that doesn't have access to the 'GLFWindow*'
-const char* platform::getClipboard() {
+const char* getClipboard() {
 	return glfwGetClipboardString(wind);
 }
 
-void platform::setClipboard(const char* str) {
+void setClipboard(const char* str) {
 	glfwSetClipboardString(wind, str);
 }
 
