@@ -302,6 +302,7 @@ static void handleCSI() {
 		break;
 	}
 	case 'H': {
+		/*
 		if (csiData.empty()) {
 			o.cursorX = 0;
 			o.cursorY = 0;
@@ -313,6 +314,10 @@ static void handleCSI() {
 			o.cursorY = std::stoi(params[1]);
 		} catch (...) {
 		}
+		*/
+		// TODO: FIX THE CURSOR, split it into absolute and relative cursors
+		// or a scrollBarY and a relative cursor, just something.
+		break;
 	}
 	case 'J': {
 		int mode = 0;

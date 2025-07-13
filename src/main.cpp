@@ -187,7 +187,6 @@ bool gameLogic(float deltaTime) {
 	if (totalLines > o.cols)
 		scrollLineStart = totalLines - o.cols;
 
-
 	render(o.screen, scrollLineStart, screenW, screenH);
 	renderCursor(o.cursorX, (o.cursorY - scrollLineStart), deltaTime, screenW, screenH);
 	return o.shell->isRunning();
