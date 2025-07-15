@@ -84,26 +84,40 @@ void StyledScreen::clear() {
 	}
 }
 
-StyledLine StyledScreen::push_back(StyledLine line) {
-	// If we are at the end, we need to move everything up, use memmove
-	if (o.cursorY == cellsH) {
-		memmove(screen, screen + cellsW, sizeof(StyledChar) * (cellsH - 1) * cellsW);
-		// After shifting, set cursorY to the last valid row
-		o.cursorY = cellsH - 1;
+void StyledScreen::append_line(StyledLine line) {
+	int copyLen = 0;
+	if (line.size() > cellsW) {
+		copyLen = cellsW;
+	} else {
+		copyLen = line.size();
 	}
+
+	if (o.cursorY < 0 || o.cursorY >= cellsH)
+		return;
 
 	StyledLine currLine = at(o.cursorY);
 
-	if (line.size() > cellsW) {
-		line = StyledLine(line.data(), cellsW);
-	}
+	// Copy line data starting at cursorX
+	int startX = std::max(0, o.cursorX);
+	int maxCopy = std::min(copyLen, cellsW - startX);
 
-	memcpy(currLine.data(), line.data(), sizeof(StyledChar) * line.size());
-	// fill the rest of the line with spaces
-	for (int i = line.size(); i < cellsW; ++i) {
-		currLine[i] = StyledChar{U' ', TermColor::Default, TermColor::Default, TextAttribute::None};
+	if (maxCopy > 0) {
+		memcpy(currLine.data() + startX, line.data(), sizeof(StyledChar) * maxCopy);
 	}
-	return currLine;
+}
+
+void StyledScreen::push_back(StyledLine line) {
+	// If we are at the end, we need to move everything up, use memmove
+	if (o.cursorY >= cellsH - 1) {
+		memmove(screen, screen + cellsW, sizeof(StyledChar) * (cellsH - 1) * cellsW);
+		// After shifting, set cursorY to the last valid row
+		o.cursorY = cellsH - 2;
+		// and then clear the new line
+		for (int x = 0; x < cellsW; ++x) {
+			screen[(cellsH - 1) * cellsW + x] = makeStyledChar(U' ');
+		}
+	}
+	append_line(line);
 }
 
 std::string StyledScreen::line_to_string(const StyledLine& line) {

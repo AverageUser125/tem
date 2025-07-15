@@ -243,7 +243,6 @@ static void handleCSI() {
 	std::string& csiData = o.procState.escBuf;
 	char type = csiData.back();
 	csiData.pop_back();
-	std::cout << "[" << type << "]'" << csiData << "'\n";
 
 	switch (type) {
 	case 'm': {
@@ -345,6 +344,7 @@ static void handleCSI() {
 		break;
 	}
 	default: {
+		std::cout << "[" << type << "]'" << csiData << "'\n";
 		break;
 	}
 	}
@@ -415,7 +415,8 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 			switch (c) {
 			case '\033': { // ESC
 				if (!currentLine.empty()) {
-					o.screen.push_back(currentLine);
+					o.screen.append_line(currentLine);
+					o.cursorX += currentLine.size();
 					currentLine.clear();
 				}
 				o.procState.state = ProcState::SawESC;
@@ -480,7 +481,6 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 					utf8Buf += len;
 
 					currentLine.push_back(makeStyledChar(cp));
-					o.cursorX++;
 				}
 				// Remove processed bytes from utf8Accum
 				if (utf8Buf > utf8Accum.data()) {
@@ -494,16 +494,9 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 		case ProcState::SawCR:
 			if (c == '\n') {
 			} else {
-				// Lone CR, treat as line break
-				if (!currentLine.empty() || o.cursorX > 0) {
-					o.screen.push_back(currentLine);
-					currentLine.clear();
-				} else {
-					o.screen.push_back({});
-				}
+				// Lone CR
 				o.cursorX = 0;
-				o.cursorY++;
-				// Do not increment i, reprocess this character
+				// Do not increment i, reprocess the current character
 			}
 			o.procState.state = ProcState::None;
 			break;
@@ -567,7 +560,8 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 
 	// Save partial line (if any)
 	if (!currentLine.empty()) {
-		o.screen.push_back(currentLine);
+		o.screen.append_line(currentLine);
+		o.cursorX += currentLine.size();
 	}
 }
 

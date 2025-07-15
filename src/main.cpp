@@ -77,9 +77,6 @@ static void handleInput() {
 	}
 
 	if (platform::isButtonTyped(platform::Button::Enter)) {
-		if (o.command.empty()) {
-			o.shell->getOutputBuffer().emplace_back('\n');
-		}
 		o.command += '\n';
 		processInput();
 		o.shell->write(o.command.c_str(), o.command.size());
@@ -87,9 +84,7 @@ static void handleInput() {
 			o.ignoreOutputCount = o.command.size();
 		}
 		o.command.clear();
-		o.cursorX = 0;
 		o.inputCursor = 0;
-		o.cursorY++;
 	}
 }
 
