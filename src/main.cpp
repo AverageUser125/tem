@@ -63,6 +63,17 @@ static void handleInput() {
 		incInpCur(1);
 	}
 
+	if (platform::isButtonTyped(platform::Button::Backspace)) {
+		if (o.inputCursor > 0) {
+			// erase one utf8 codepoint
+			// FIXME: utf8 is multibyte
+			
+			size_t prevIndex = charIndexToByteOffset(o.command, o.inputCursor - 1);
+			int len = codepoint_length(o.command.data() + prevIndex);
+			o.command.erase(prevIndex, len);
+			incInpCur(-1);
+		}
+	}
 	if ((platform::isButtonHeld(platform::Button::LeftCtrl) || platform::isButtonPressed(platform::Button::LeftCtrl)) &&
 		platform::isButtonPressed(platform::Button::V)) {
 		const char* clip = platform::getClipboard(); // null-terminated UTF-8
@@ -109,7 +120,7 @@ bool gameLogic(float deltaTime) {
 	}
 
 	render(o.screen, screenW, screenH);
-	renderCursor(o.cursorX, o.cursorY, deltaTime, screenW, screenH);
+	renderCursor(o.cursorX + o.inputCursor, o.cursorY, deltaTime, screenW, screenH);
 	return o.shell->isRunning();
 }
 

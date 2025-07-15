@@ -68,3 +68,9 @@ int get_length(std::string_view sv) {
 	}
 	return i;
 }
+
+int codepoint_length(const char* s) {
+	uint32_t codepoint;
+	int len = decode_utf8(s, &codepoint);
+	return len;
+}
