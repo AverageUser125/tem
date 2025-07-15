@@ -42,9 +42,10 @@ struct DeferImpl {
 	std::function<void()> func_;
 };
 
-#define CONCATENATE_DEFFER(x, y) x##y
-#define MAKE_UNIQUE_VAR_DEFFER(x, y) CONCATENATE_DEFFER(x, y)
-#define defer(func) DeferImpl MAKE_UNIQUE_VAR_DEFFER(_defer_, __COUNTER__)(func)
+#define CONCATENATE_DEFER(x, y) x##y
+#define MAKE_UNIQUE_VAR_DEFER(x, y) CONCATENATE_DEFER(x, y)
+#define MAKE_FUNCTION_DEFER(func) [&]() { func; }
+#define defer(func) DeferImpl MAKE_UNIQUE_VAR_DEFER(_defer_, __COUNTER__)(MAKE_FUNCTION_DEFER(func))
 
 
 #if PRODUCTION_BUILD == 0

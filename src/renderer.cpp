@@ -173,7 +173,7 @@ static bool tryPackGlyph(uint32_t cp) {
 
 	int glyphW, glyphH, xoff, yoff;
 	unsigned char* bitmap = stbtt_GetGlyphBitmap(&fontInfo, scale, scale, glyphIndex, &glyphW, &glyphH, &xoff, &yoff);
-
+	defer(stbtt_FreeBitmap(bitmap, nullptr));
 	if (atlasX + glyphW >= ATLAS_WIDTH) {
 		atlasX = 0;
 		atlasY += atlasRowHeight;
@@ -181,7 +181,6 @@ static bool tryPackGlyph(uint32_t cp) {
 	}
 
 	if (atlasY + glyphH >= ATLAS_HEIGHT) {
-		stbtt_FreeBitmap(bitmap, nullptr);
 		return false; // atlas full
 	}
 
@@ -203,7 +202,6 @@ static bool tryPackGlyph(uint32_t cp) {
 	atlasX += glyphW + 1;
 	atlasRowHeight = std::max(atlasRowHeight, glyphH);
 
-	stbtt_FreeBitmap(bitmap, nullptr);
 	return true;
 }
 
@@ -240,6 +238,7 @@ static void buildAtlasIncremental(const std::vector<uint32_t>& codepoints) {
 		int glyphW, glyphH, xoff, yoff;
 		unsigned char* bitmap =
 			stbtt_GetGlyphBitmap(&fontInfo, scale, scale, glyphIndex, &glyphW, &glyphH, &xoff, &yoff);
+		defer(stbtt_FreeBitmap(bitmap, nullptr));
 
 		if (x + glyphW >= ATLAS_WIDTH) {
 			x = 0;
@@ -267,8 +266,6 @@ static void buildAtlasIncremental(const std::vector<uint32_t>& codepoints) {
 		x += glyphW + 1;
 		if (glyphH > rowHeight)
 			rowHeight = glyphH;
-
-		stbtt_FreeBitmap(bitmap, nullptr);
 	}
 
 	uploadAtlasTexture();
@@ -344,7 +341,7 @@ void render(StyledScreen& screen, int screenW, int screenH) {
 	permaAssert(fontSizeGlobal > 0.0f);
 
 	glUseProgram(shaderProgram);
-
+	defer(glUseProgram(0));
 	GLint screenSizeLoc = glGetUniformLocation(shaderProgram, "screenSize");
 	glUniform2f(screenSizeLoc, float(screenW), float(screenH));
 
@@ -354,6 +351,7 @@ void render(StyledScreen& screen, int screenW, int screenH) {
 	glUniform1i(texLoc, 0);
 
 	glBindVertexArray(vao);
+	defer(glBindVertexArray(0));
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
 	glEnableVertexAttribArray(0);
@@ -403,9 +401,6 @@ void render(StyledScreen& screen, int screenW, int screenH) {
 
 	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_DYNAMIC_DRAW);
 	glDrawArrays(GL_TRIANGLES, 0, (GLsizei)vertices.size());
-
-	glBindVertexArray(0);
-	glUseProgram(0);
 }
 
 void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int screenH) {
@@ -454,7 +449,7 @@ void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int sc
 	};
 
 	glUseProgram(shaderProgram);
-
+	defer(glUseProgram(0));
 	GLint screenSizeLoc = glGetUniformLocation(shaderProgram, "screenSize");
 	GLint texLoc = glGetUniformLocation(shaderProgram, "tex");
 
@@ -465,6 +460,7 @@ void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int sc
 	glBindTexture(GL_TEXTURE_2D, atlasTexture);
 
 	glBindVertexArray(vao);
+	defer(glBindVertexArray(0));
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
 	glEnableVertexAttribArray(0);
@@ -476,9 +472,6 @@ void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int sc
 
 	glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_DYNAMIC_DRAW);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
-
-	glBindVertexArray(0);
-	glUseProgram(0);
 }
 
 void stopRender() {
