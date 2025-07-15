@@ -7,7 +7,7 @@
 #include "utf8.h"
 #include "main.h"
 #include "processText.h"
-
+#include "styledScreen.h"
 Data o;
 
 static void incCurX(int num) {
@@ -34,11 +34,6 @@ static void incInpCur(int num) {
 	o.inputCursor = newInp;
 }
 
-static void ensureLineExists(int y) {
-	while ((int)o.screen.size() <= y)
-		o.screen.emplace_back();
-}
-
 static size_t charIndexToByteOffset(const std::string& utf8line, int charIndex) {
 	size_t offset = 0;
 	int count = 0;
@@ -56,48 +51,11 @@ static size_t charIndexToByteOffset(const std::string& utf8line, int charIndex) 
 	return offset;
 }
 
-static void insertCodePointAtCursor(char32_t cp) {
-	if (!o.flags.has(TermFlags::INPUT_ECHO)) {
-		return;
-	}
-	ensureLineExists(o.cursorY);
-	StyledLine& line = o.screen[o.cursorY];
-	line.insert(line.begin() + o.cursorX, {cp});
-	incCurX(1);
-}
-
-static void deleteCharBeforeCursor() {
-	if (o.inputCursor <= 0)
-		return;
-
-	// Remove from o.command
-	{
-		size_t prevOffset = charIndexToByteOffset(o.command, o.inputCursor - 1);
-		uint32_t cp;
-		int len = decode_utf8(o.command.data() + prevOffset, &cp);
-		if (len > 0)
-			o.command.erase(prevOffset, len);
-	}
-
-	// Remove from visible line if echo is enabled
-	if (o.flags.has(TermFlags::INPUT_ECHO)) {
-		ensureLineExists(o.cursorY);
-		StyledLine& line = o.screen[o.cursorY];
-		if (o.cursorX >= 1) {
-			line.erase(line.begin() + o.cursorX - 1);
-		}
-	}
-
-	incInpCur(-1);
-	incCurX(-1);
-}
-
 static void handleInput() {
 	const std::u32string& typed = platform::getTypedInput();
 	for (uint32_t ch : typed) {
 		if (ch < 32)
 			continue;
-		insertCodePointAtCursor(ch);
 		char buf[4];
 		int bytesWritten = encode_utf8(ch, buf);
 		size_t index = charIndexToByteOffset(o.command, o.inputCursor);
@@ -115,34 +73,7 @@ static void handleInput() {
 			// Advance input cursor and visual cursor by codepoint count
 			int cpCount = get_length(clip);
 			incInpCur(cpCount);
-
-			const char* p = clip;
-			while (*p) {
-				uint32_t cp;
-				int len = decode_utf8(p, &cp);
-				if (len <= 0)
-					break; // invalid UTF-8 — stop
-				insertCodePointAtCursor(cp);
-				p += len;
-			}
 		}
-	}
-	if (platform::isButtonTyped(platform::Button::Left) && o.inputCursor > 0) {
-		incInpCur(-1);
-		incCurX(-1);
-	}
-
-	if (platform::isButtonTyped(platform::Button::Right) && o.inputCursor < get_length(o.command)) {
-		incInpCur(1);
-		incCurX(1);
-	}
-
-	if (platform::isButtonPressed(platform::Button::Home)) {
-		incCurX(-o.inputCursor);
-		o.inputCursor = 0;
-	}
-	if (platform::isButtonTyped(platform::Button::Backspace)) {
-		deleteCharBeforeCursor();
 	}
 
 	if (platform::isButtonTyped(platform::Button::Enter)) {
@@ -168,28 +99,22 @@ bool gameLogic(float deltaTime) {
 	if (platform::isButtonPressed(platform::Button::F11))
 		platform::setFullScreen(!platform::isFullScreen());
 
+	// Assumes monospace font
+	o.cols = screenH / o.fontSize;
+	o.rows = 2 * screenW / o.fontSize;
+	o.screen.resize(o.rows, o.cols);
+
 	handleInput();
 
-	ensureLineExists(o.cursorY);
 	o.shell->update();
 	auto& buf = o.shell->getOutputBuffer();
 	if (!buf.empty()) {
-		auto cleaned = processPartialOutputSegment(buf);
-		appendNewLines(cleaned);
+		processPartialOutputSegment(buf);
 		buf.clear();
 	}
 
-	// Assumes monospace font
-	o.cols = screenH / o.fontSize;
-	o.rows = screenW / o.fontSize;
-
-	int scrollLineStart = 0;
-	int totalLines = int(o.screen.size());
-	if (totalLines > o.cols)
-		scrollLineStart = totalLines - o.cols;
-
-	render(o.screen, scrollLineStart, screenW, screenH);
-	renderCursor(o.cursorX, (o.cursorY - scrollLineStart), deltaTime, screenW, screenH);
+	render(o.screen, screenW, screenH);
+	renderCursor(o.cursorX, o.cursorY, deltaTime, screenW, screenH);
 	return o.shell->isRunning();
 }
 

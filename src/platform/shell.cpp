@@ -21,7 +21,7 @@
 
 namespace platform
 {
-	#ifdef _WIN32
+#ifdef _WIN32
 class WinProcess : public Process {
 	HPCON hPC = nullptr;
 	HANDLE hInputWrite = nullptr;

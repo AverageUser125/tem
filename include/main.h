@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string_view>
 #include "bitflags.hpp"
+#include "styledScreen.h"
 
 namespace platform
 {
@@ -25,39 +26,6 @@ struct TermFlags {
 	DEFINE_BITFLAGS(TermFlags);
 };
 
-enum class TermColor : uint8_t {
-	Default,
-	Black,
-	Red,
-	Green,
-	Yellow,
-	Blue,
-	Magenta,
-	Cyan,
-	White,
-	BrightBlack,
-	BrightRed,
-	BrightGreen,
-	BrightYellow,
-	BrightBlue,
-	BrightMagenta,
-	BrightCyan,
-	BrightWhite
-};
-
-struct TextAttribute {
-  public:
-	enum Value : uint8_t {
-		None = 0,
-		Bold = 1 << 0,
-		Italic = 1 << 1,
-		Underline = 1 << 2,
-		Inverse = 1 << 3,
-	};
-
-	DEFINE_BITFLAGS(TextAttribute);
-};
-
 enum class ProcState : uint8_t {
 	None,
 	SawESC,
@@ -66,17 +34,6 @@ enum class ProcState : uint8_t {
 	SawOSCBracketAndESC,
 	SawCR,
 };
-
-struct StyledChar {
-	char32_t ch; // Unicode codepoint
-	TermColor fg = TermColor::Default;
-	// TODO: Add background support
-	TermColor bg = TermColor::Default;
-	TextAttribute attr = TextAttribute::None;
-};
-
-using StyledLine = std::vector<StyledChar>;
-using StyledScreen = std::vector<StyledLine>;
 
 struct InputProcessorState {
 	std::string leftover;

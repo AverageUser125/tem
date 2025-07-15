@@ -10,6 +10,8 @@
 #include <string>
 #include <cstring>
 #include <cstdio>
+#include "styledScreen.h"
+
 static void uploadAtlasTexture();
 
 struct Glyph {
@@ -327,6 +329,7 @@ void startRender(float fontSize) {
 
 	buildAtlasIncremental(asciiRange);
 	uploadAtlasTexture();
+	glyphs['\0'] = glyphs.at(' ');
 
 	int glyphIndexSpace = stbtt_FindGlyphIndex(&fontInfo, ' ');
 	int advanceSpace, lsb;
@@ -335,12 +338,10 @@ void startRender(float fontSize) {
 	charHeight = (float)(ascent - descent + lineGap) * scale;
 }
 
-void render(StyledScreen& screen, int startLineIndex, int screenW, int screenH) {
+void render(StyledScreen& screen, int screenW, int screenH) {
 	glViewport(0, 0, screenW, screenH);
 	glClear(GL_COLOR_BUFFER_BIT);
 	permaAssert(fontSizeGlobal > 0.0f);
-	if (screen.empty() || startLineIndex >= (int)screen.size())
-		return;
 
 	glUseProgram(shaderProgram);
 
@@ -366,11 +367,11 @@ void render(StyledScreen& screen, int startLineIndex, int screenW, int screenH) 
 	float lineHeight = (ascent - descent + lineGap) * scale;
 	float yStart = 0;
 
-	for (int lineIndex = startLineIndex; lineIndex < (int)screen.size(); ++lineIndex) {
+	for (int lineIndex = 0; lineIndex < screen.size(); ++lineIndex) {
 		float penX = 0;
-		float baselineY = yStart + ascent * scale + (lineIndex - startLineIndex) * lineHeight;
-
-		for (StyledChar& stc : screen[lineIndex]) {
+		float baselineY = yStart + ascent * scale + lineIndex * lineHeight;
+		StyledLine line = screen[lineIndex];
+		for (const StyledChar& stc : line) {
 			if (stc.ch == '\r')
 				continue;
 

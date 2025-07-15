@@ -11,6 +11,7 @@
 #include <platform/window.h>
 #include <charconv>
 #include <stdexcept>
+#include "styledScreen.h"
 
 namespace std
 {
@@ -25,10 +26,6 @@ static int stoi(std::string_view sv) {
 	}
 	return out;
 }
-}
-
-inline StyledChar makeStyledChar(char32_t ch) {
-	return StyledChar{ch, o.procState.currFG, o.procState.currBG, o.procState.currAttr};
 }
 
 static std::vector<std::string_view> split(const std::string_view& str, char delimiter) {
@@ -232,9 +229,8 @@ static void handleEraseInDisplay(int mode) {
 		o.inputCursor = 0;
 		break;
 	}
-	case 3: { // Erase scrollback buffer (non-standard, xterm specific)
+	case 3: { // Erase scrollback buffer
 		o.screen.clear();
-		o.screen.resize(o.rows, StyledLine(o.cols, makeStyledChar(U' ')));
 		break;
 	}
 	default:
@@ -247,6 +243,7 @@ static void handleCSI() {
 	std::string& csiData = o.procState.escBuf;
 	char type = csiData.back();
 	csiData.pop_back();
+	std::cout << "[" << type << "]'" << csiData << "'\n";
 
 	switch (type) {
 	case 'm': {
@@ -295,7 +292,8 @@ static void handleCSI() {
 		}
 		StyledChar blankChar = makeStyledChar(U' ');
 		StyledLine& line = o.screen[o.cursorY];
-		line.insert(line.begin() + o.cursorX, count, blankChar);
+		// TODO: Fix this, it should insert blanks at the cursor position
+		//line.insert(line.begin() + o.cursorX, count, blankChar);
 
 		break;
 	}
@@ -304,8 +302,7 @@ static void handleCSI() {
 		handleDECPrivateMode(csiData, type);
 		break;
 	}
-	//case 'H': {
-		/*
+	case 'H': {
 		if (csiData.empty()) {
 			o.cursorX = 0;
 			o.cursorY = 0;
@@ -313,15 +310,14 @@ static void handleCSI() {
 		}
 		auto params = split(csiData, ';');
 		try {
-			o.cursorX = std::stoi(params[0]);
-			o.cursorY = std::stoi(params[1]);
+			o.cursorX = std::stoi(params[1]);
+			o.cursorY = std::stoi(params[0]);
 		} catch (...) {
 		}
 		// TODO: FIX THE CURSOR, split it into absolute and relative cursors
 		// or a scrollBarY and a relative cursor, just something.
 		break;
 	}
-		*/
 	case 'K': {
 		int mode = 0;
 		try {
@@ -331,7 +327,8 @@ static void handleCSI() {
 		if (mode == 0) {
 			StyledLine& line = o.screen[o.cursorY];
 			if (!line.empty()) {
-				line.erase(line.begin() + o.cursorX, line.end());
+				// TODO: erase in line
+				//line.erase(line.begin() + o.cursorX, line.end());
 			}
 		}
 		break;
@@ -348,7 +345,7 @@ static void handleCSI() {
 		break;
 	}
 	default: {
-		std::cout << "[" << type << "]'" << csiData << "'\n";
+		break;
 	}
 	}
 
@@ -398,14 +395,17 @@ static void handleOSC() {
 	oscData.clear();
 }
 
-std::vector<char> processPartialOutputSegment(const std::vector<char>& inputSegment) {
+void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 	size_t skip = std::min(static_cast<size_t>(o.ignoreOutputCount), inputSegment.size());
 	o.ignoreOutputCount -= static_cast<int>(skip);
 	// Insert only the part that remains
 	o.procState.leftover.insert(o.procState.leftover.end(), inputSegment.begin() + skip, inputSegment.end());
 
-	std::vector<char> output;
+	std::vector<StyledChar> currentLine;
 	size_t i = 0;
+	const char* utf8Buf = nullptr;
+	const char* utf8End = nullptr;
+	std::vector<char> utf8Accum;
 
 	while (i < o.procState.leftover.size()) {
 		char c = o.procState.leftover[i];
@@ -413,11 +413,15 @@ std::vector<char> processPartialOutputSegment(const std::vector<char>& inputSegm
 		switch (o.procState.state) {
 		case ProcState::None:
 			switch (c) {
-			case '\033': // ESC
+			case '\033': { // ESC
+				if (!currentLine.empty()) {
+					o.screen.push_back(currentLine);
+					currentLine.clear();
+				}
 				o.procState.state = ProcState::SawESC;
 				i++;
 				break;
-
+			}
 			case '\r': // Carriage Return
 				o.procState.state = ProcState::SawCR;
 				i++;
@@ -427,32 +431,79 @@ std::vector<char> processPartialOutputSegment(const std::vector<char>& inputSegm
 				o.screen.clear();
 				o.cursorX = 0;
 				o.cursorY = 0;
+				currentLine.clear();
 				i++;
 				break;
 
 			case '\t': // Tab
-				output.insert(output.end(), {' ', ' ', ' ', ' '});
+				for (int t = 0; t < 4; ++t) {
+					currentLine.push_back(makeStyledChar(U' '));
+					o.cursorX++;
+				}
 				i++;
 				break;
 
 			case '\b': // Backspace
-				o.cursorX--;
-				break;
-
-			default:
-				output.push_back(c);
+				if (!currentLine.empty() && o.cursorX > 0) {
+					currentLine.pop_back();
+					o.cursorX--;
+				}
 				i++;
 				break;
+
+			case '\n': {
+				// Commit the current line and reset
+				if (!currentLine.empty() || o.cursorX > 0) {
+					o.screen.push_back(currentLine);
+					currentLine.clear();
+				} else {
+					// Even if empty, push an empty line for a bare newline
+					o.screen.push_back({});
+				}
+				o.cursorX = 0;
+				o.cursorY++;
+				i++;
+				break;
+			}
+			default: {
+				// Accumulate UTF-8 bytes for decoding
+				utf8Accum.push_back(c);
+				i++;
+				// Try to decode as much as possible
+				utf8Buf = utf8Accum.data();
+				utf8End = utf8Buf + utf8Accum.size();
+				while (utf8Buf < utf8End) {
+					uint32_t cp;
+					int len = decode_utf8(utf8Buf, &cp);
+					if (len <= 0 || utf8Buf + len > utf8End)
+						break;
+					utf8Buf += len;
+
+					currentLine.push_back(makeStyledChar(cp));
+					o.cursorX++;
+				}
+				// Remove processed bytes from utf8Accum
+				if (utf8Buf > utf8Accum.data()) {
+					utf8Accum.erase(utf8Accum.begin(), utf8Accum.begin() + (utf8Buf - utf8Accum.data()));
+				}
+				break;
+			}
 			}
 			break;
 
 		case ProcState::SawCR:
 			if (c == '\n') {
-				output.push_back('\n'); // CRLF -> LF
-				i++;
 			} else {
-				output.push_back('\r'); // Lone CR
-										// reprocess current character
+				// Lone CR, treat as line break
+				if (!currentLine.empty() || o.cursorX > 0) {
+					o.screen.push_back(currentLine);
+					currentLine.clear();
+				} else {
+					o.screen.push_back({});
+				}
+				o.cursorX = 0;
+				o.cursorY++;
+				// Do not increment i, reprocess this character
 			}
 			o.procState.state = ProcState::None;
 			break;
@@ -514,44 +565,9 @@ std::vector<char> processPartialOutputSegment(const std::vector<char>& inputSegm
 		o.procState.leftover.erase(o.procState.leftover.begin(), o.procState.leftover.begin() + i);
 	}
 
-	return output;
-}
-
-void appendNewLines(const std::vector<char>& buf) {
-	if (buf.empty())
-		return;
-
-	const char* bufData = buf.data();
-	const char* bufEnd = bufData + buf.size();
-	const char* iter = bufData;
-
-	StyledLine currentLine;
-
-	while (iter < bufEnd) {
-		uint32_t cp;
-		int len = decode_utf8(iter, &cp);
-		if (len <= 0 || iter + len > bufEnd)
-			break;
-
-		iter += len;
-
-		if (cp == '\n') {
-			// Commit the current line and reset
-			o.screen.push_back(std::move(currentLine));
-			currentLine.clear();
-			o.cursorX = 0;
-			o.cursorY++;
-		} else {
-			// Append character with current style
-			currentLine.push_back(makeStyledChar(cp));
-		}
-	}
-
 	// Save partial line (if any)
 	if (!currentLine.empty()) {
-		o.screen.push_back(std::move(currentLine));
-		o.cursorX = int(o.screen.back().size());
-		o.cursorY = int(o.screen.size() - 1);
+		o.screen.push_back(currentLine);
 	}
 }
 
