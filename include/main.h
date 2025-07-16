@@ -55,6 +55,7 @@ struct Data {
 	int rows = 0, cols = 0;
 	int ignoreOutputCount = 0;
 	TermFlags flags;
+	bool showCursor = true;
 };
 
 extern Data o;

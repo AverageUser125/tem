@@ -215,38 +215,8 @@ static void applySGRColor(std::string_view codeStr) {
 	}
 }
 
-static TermFlags termFlagFromNumber(int code) {
-	switch (code) {
-	case 1:
-		return TermFlags::INPUT_LF_TO_CRLF; // Map to input LF->CRLF
-	case 2:
-		return TermFlags::INPUT_ECHO; // Echo input characters
-	case 7:
-		return TermFlags::OUTPUT_WRAP_LINES; // Auto-wrap lines enabled
-
-	case 25:
-		// Show cursor
-		// return TermFlags::SHOW_CURSOR;
-		return TermFlags::NONE;
-
-	case 1049:
-	case 1047:
-		// Alternate screen buffer
-		// return TermFlags::ALT_SCREEN_BUFFER;
-		return TermFlags::NONE;
-
-	case 1048:
-		// Save cursor position
-		// return TermFlags::SAVE_CURSOR;
-		return TermFlags::NONE;
-
-	default:
-		return TermFlags::NONE; // Unknown or unsupported code
-	}
-}
-
-static void handleDECPrivateMode(std::string_view params, char finalChar) {
-	// Example: params = "?7" or "?25" etc.
+static void handleDECPrivateMode(std::string_view params, bool enable) {
+	// Handles DEC Private Mode Set/Reset sequences (e.g., ESC[?7h, ESC[?25l)
 	if (params.empty() || params[0] != '?') {
 		return; // Not a DEC private mode sequence
 	}
@@ -257,59 +227,54 @@ static void handleDECPrivateMode(std::string_view params, char finalChar) {
 	try {
 		mode = std::stoi(modeStr);
 	} catch (...) {
-		return;
+		return; // Invalid mode, ignore
 	}
 
-	TermFlags::Value flag{};
+	// Lambda to set or clear a flag based on finalChar ('h' = set, 'l' = clear)
+	constexpr auto setFlag = [](TermFlags::Value flag, bool enable) {
+		if (enable) {
+			o.flags |= flag;
+		} else {
+			o.flags &= ~flag;
+		}
+	};
+
 	switch (mode) {
 	case 1:
-		flag = TermFlags::INPUT_LF_TO_CRLF; // Map to input LF->CRLF
+		// Input: Map LF to CRLF
+		setFlag(TermFlags::INPUT_LF_TO_CRLF, enable);
 		break;
 	case 2:
-		flag = TermFlags::INPUT_ECHO; // Echo input characters
+		// Input: Echo input characters
+		setFlag(TermFlags::INPUT_ECHO, enable);
 		break;
 	case 7:
-		flag = TermFlags::OUTPUT_WRAP_LINES; // Auto-wrap lines enabled
+		// Output: Auto-wrap lines
+		setFlag(TermFlags::OUTPUT_WRAP_LINES, enable);
 		break;
 	case 25:
-		// Show cursor
-		// flag = TermFlags::SHOW_CURSOR;
-		flag = TermFlags::NONE;
+		// Cursor: Show or hide cursor
+		o.showCursor = enable;
 		break;
 	case 1004:
-		// Focus In/Out event reporting
-		flag = TermFlags::TRACK_FOCUS;
+		// Focus: Track focus events
+		setFlag(TermFlags::TRACK_FOCUS, enable);
 		break;
 	case 1049:
+		// Alternate screen buffer (not implemented)
+		break;
 	case 1047:
-		// Alternate screen buffer
-		// flag = TermFlags::ALT_SCREEN_BUFFER;
-		flag = TermFlags::NONE;
+		// Alternate screen buffer (not implemented)
 		break;
 	case 1048:
-		// Save cursor position
-		// flag = TermFlags::SAVE_CURSOR;
-		flag = TermFlags::NONE;
+		// Save/restore cursor (not implemented)
 		break;
 	case 9001:
-		// Shell specific intergration mode (nonstandard)
-		flag = TermFlags::NONE;
+		// Shell integration mode (nonstandard, not implemented)
 		break;
 	default:
-		flag = TermFlags::NONE; // Unknown or unsupported code
+		// Unknown or unsupported mode
 		break;
-	}
-
-	if (flag == TermFlags::NONE) {
-		return;
-	}
-
-	if (finalChar == 'h') {
-		// Set the flag
-		o.flags |= flag;
-	} else if (finalChar == 'l') {
-		// Clear the flag
-		o.flags &= ~flag;
 	}
 }
 
@@ -412,7 +377,7 @@ static void handleCSI() {
 	}
 	case 'l':
 	case 'h': {
-		handleDECPrivateMode(csiData, type);
+		handleDECPrivateMode(csiData, type == 'h');
 		break;
 	}
 	case 'H': {

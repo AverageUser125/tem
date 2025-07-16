@@ -130,7 +130,9 @@ bool gameLogic(float deltaTime) {
 	}
 
 	render(o.screen, screenW, screenH);
-	renderCursor(o.cursorX + o.inputCursor, o.cursorY, deltaTime, screenW, screenH);
+	if (o.showCursor) {
+		renderCursor(o.cursorX + o.inputCursor, o.cursorY, deltaTime, screenW, screenH);
+	}
 	return o.shell->isRunning();
 }
 
