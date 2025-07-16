@@ -20,6 +20,7 @@ struct TermFlags {
 		OUTPUT_RETURNS_INPUT = 1 << 2,
 		OUTPUT_WRAP_LINES = 1 << 3,
 		OUTPUT_ESCAPE_CODES = 1 << 4,
+		TRACK_FOCUS = 1 << 5,
 	};
 
   private:
@@ -39,8 +40,8 @@ struct InputProcessorState {
 	std::string leftover;
 	std::string escBuf;
 	ProcState state = ProcState::None;
-	TermColor currFG = TermColor::Default;
-	TermColor currBG = TermColor::Default;
+	TermColor currFG = TermColor::DefaultForeGround();
+	TermColor currBG = TermColor::DefaultBackGround();
 	TextAttribute currAttr = TextAttribute::None;
 };
 

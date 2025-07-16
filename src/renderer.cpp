@@ -32,9 +32,13 @@ out vec4 out_color;
 
 uniform sampler2D tex;
 
-void main() {
-	float alpha = texture(tex, frag_uv).r;
-	out_color = vec4(frag_color.rgb, frag_color.a * alpha);
+void main() {    
+	if (frag_uv == vec2(0.0, 0.0)) {
+        out_color = frag_color;
+    } else {
+        float alpha = texture(tex, frag_uv).r;
+        out_color = vec4(frag_color.rgb, frag_color.a * alpha);
+    }
 }
 )glsl";
 
@@ -103,42 +107,7 @@ struct vec4 {
 };
 
 static constexpr vec4 termColorToRGBA(TermColor color) {
-	switch (color) {
-	case TermColor::Black:
-		return {0.0f, 0.0f, 0.0f, 1.0f};
-	case TermColor::Red:
-		return {0.8f, 0.0f, 0.0f, 1.0f};
-	case TermColor::Green:
-		return {0.0f, 0.8f, 0.0f, 1.0f};
-	case TermColor::Yellow:
-		return {0.8f, 0.8f, 0.0f, 1.0f};
-	case TermColor::Blue:
-		return {0.0f, 0.0f, 0.8f, 1.0f};
-	case TermColor::Magenta:
-		return {0.8f, 0.0f, 0.8f, 1.0f};
-	case TermColor::Cyan:
-		return {0.0f, 0.8f, 0.8f, 1.0f};
-	case TermColor::White:
-		return {0.8f, 0.8f, 0.8f, 1.0f};
-	case TermColor::BrightBlack:
-		return {0.2f, 0.2f, 0.2f, 1.0f};
-	case TermColor::BrightRed:
-		return {1.0f, 0.0f, 0.0f, 1.0f};
-	case TermColor::BrightGreen:
-		return {0.0f, 1.0f, 0.0f, 1.0f};
-	case TermColor::BrightYellow:
-		return {1.0f, 1.0f, 0.0f, 1.0f};
-	case TermColor::BrightBlue:
-		return {0.0f, 0.0f, 1.0f, 1.0f};
-	case TermColor::BrightMagenta:
-		return {1.0f, 0.0f, 1.0f, 1.0f};
-	case TermColor::BrightCyan:
-		return {0.0f, 1.0f, 1.0f, 1.0f};
-	case TermColor::BrightWhite:
-		return {1.0f, 1.0f, 1.0f, 1.0f};
-	default:
-		return {1.0f, 1.0f, 1.0f, 1.0f};
-	}
+	return {color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, 1.0f};
 }
 
 static GLuint compileShader(GLenum type, const char* src) {
@@ -378,22 +347,36 @@ void render(StyledScreen& screen, int screenW, int screenH) {
 
 			float x0 = penX + g.bl;
 			float y0 = baselineY + g.bt;
-
 			float x1 = x0 + g.bw;
 			float y1 = y0 + g.bh;
+
+			if (stc.bg != TermColor::DefaultBackGround()) {
+				float bgX0 = penX;
+				float bgY0 = baselineY - ascent * scale;
+				float bgX1 = bgX0 + charWidth;
+				float bgY1 = bgY0 + charHeight;
+
+				vec4 bgColor = termColorToRGBA(stc.bg);
+				vertices.push_back({bgX0, bgY0, 0, 0, bgColor.r, bgColor.g, bgColor.b, bgColor.a});
+				vertices.push_back({bgX1, bgY0, 0, 0, bgColor.r, bgColor.g, bgColor.b, bgColor.a});
+				vertices.push_back({bgX0, bgY1, 0, 0, bgColor.r, bgColor.g, bgColor.b, bgColor.a});
+				vertices.push_back({bgX1, bgY0, 0, 0, bgColor.r, bgColor.g, bgColor.b, bgColor.a});
+				vertices.push_back({bgX1, bgY1, 0, 0, bgColor.r, bgColor.g, bgColor.b, bgColor.a});
+				vertices.push_back({bgX0, bgY1, 0, 0, bgColor.r, bgColor.g, bgColor.b, bgColor.a});
+			}
 
 			float tx0 = g.tx;
 			float tx1 = tx0 + g.bw / ATLAS_WIDTH;
 			float ty0 = 0.0f;
 			float ty1 = g.bh / ATLAS_HEIGHT;
-			vec4 color = termColorToRGBA(stc.fg);
+			vec4 fgColor = termColorToRGBA(stc.fg);
 
-			vertices.push_back({x0, y0, tx0, ty0, color.r, color.g, color.b, color.a});
-			vertices.push_back({x1, y0, tx1, ty0, color.r, color.g, color.b, color.a});
-			vertices.push_back({x0, y1, tx0, ty1, color.r, color.g, color.b, color.a});
-			vertices.push_back({x1, y0, tx1, ty0, color.r, color.g, color.b, color.a});
-			vertices.push_back({x1, y1, tx1, ty1, color.r, color.g, color.b, color.a});
-			vertices.push_back({x0, y1, tx0, ty1, color.r, color.g, color.b, color.a});
+			vertices.push_back({x0, y0, tx0, ty0, fgColor.r, fgColor.g, fgColor.b, fgColor.a});
+			vertices.push_back({x1, y0, tx1, ty0, fgColor.r, fgColor.g, fgColor.b, fgColor.a});
+			vertices.push_back({x0, y1, tx0, ty1, fgColor.r, fgColor.g, fgColor.b, fgColor.a});
+			vertices.push_back({x1, y0, tx1, ty0, fgColor.r, fgColor.g, fgColor.b, fgColor.a});
+			vertices.push_back({x1, y1, tx1, ty1, fgColor.r, fgColor.g, fgColor.b, fgColor.a});
+			vertices.push_back({x0, y1, tx0, ty1, fgColor.r, fgColor.g, fgColor.b, fgColor.a});
 
 			penX += g.ax;
 		}
@@ -441,7 +424,7 @@ void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int sc
 	float ty0 = 0.0f;
 	float ty1 = g.bh / ATLAS_HEIGHT;
 
-	constexpr vec4 color = termColorToRGBA(TermColor::Default);
+	constexpr vec4 color = termColorToRGBA(TermColor::DefaultForeGround());
 	Vertex verts[6] = {
 		{x0, y0, tx0, ty0, color.r, color.g, color.b, color.a}, {x1, y0, tx1, ty0, color.r, color.g, color.b, color.a},
 		{x0, y1, tx0, ty1, color.r, color.g, color.b, color.a}, {x1, y0, tx1, ty0, color.r, color.g, color.b, color.a},

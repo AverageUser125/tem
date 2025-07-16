@@ -67,7 +67,7 @@ static void handleInput() {
 		if (o.inputCursor > 0) {
 			// erase one utf8 codepoint
 			// FIXME: utf8 is multibyte
-			
+
 			size_t prevIndex = charIndexToByteOffset(o.command, o.inputCursor - 1);
 			int len = codepoint_length(o.command.data() + prevIndex);
 			o.command.erase(prevIndex, len);
@@ -117,6 +117,16 @@ bool gameLogic(float deltaTime) {
 	if (!buf.empty()) {
 		processPartialOutputSegment(buf);
 		buf.clear();
+	}
+
+	if (o.flags.has(TermFlags::TRACK_FOCUS)) {
+		static bool wasFocused = platform::hasFocused();
+		bool isFocused = platform::hasFocused();
+		if (isFocused != wasFocused) {
+			wasFocused = isFocused;
+			std::string_view focusCode = isFocused ? "\033[I" : "\033[O";
+			o.shell->write(focusCode.data(), focusCode.size());
+		}
 	}
 
 	render(o.screen, screenW, screenH);

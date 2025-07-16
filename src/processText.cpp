@@ -43,21 +43,65 @@ static std::vector<std::string_view> split(const std::string_view& str, char del
 	return parts;
 }
 
+static TermColor colorFrom256(int index) {
+	// 256-color xterm palette: 16..231 is a 6x6x6 color cube
+	// index: 0-255
+	if (index >= 16 && index <= 231) {
+		int idx = index - 16;
+		int r = (idx / 36) % 6;
+		int g = (idx / 6) % 6;
+		int b = idx % 6;
+		return TermColor(r * 51, g * 51, b * 51);
+	}
+	// 232..255: grayscale ramp
+	if (index >= 232 && index <= 255) {
+		int gray = 8 + (index - 232) * 10;
+		return TermColor(gray, gray, gray);
+	}
+	// 0..15: standard colors (fallback to simple mapping)
+	static const TermColor basic[16] = {
+		TermColor(0, 0, 0),		  // black
+		TermColor(128, 0, 0),	  // red
+		TermColor(0, 128, 0),	  // green
+		TermColor(128, 128, 0),	  // yellow
+		TermColor(0, 0, 128),	  // blue
+		TermColor(128, 0, 128),	  // magenta
+		TermColor(0, 128, 128),	  // cyan
+		TermColor(192, 192, 192), // white
+		TermColor(128, 128, 128), // bright black (gray)
+		TermColor(255, 0, 0),	  // bright red
+		TermColor(0, 255, 0),	  // bright green
+		TermColor(255, 255, 0),	  // bright yellow
+		TermColor(0, 0, 255),	  // bright blue
+		TermColor(255, 0, 255),	  // bright magenta
+		TermColor(0, 255, 255),	  // bright cyan
+		TermColor(255, 255, 255)  // bright white
+	};
+	if (index >= 0 && index < 16)
+		return basic[index];
+	// fallback: black
+	return TermColor(0, 0, 0);
+}
+
 static void applySGRColor(std::string_view codeStr) {
 	auto codes = split(codeStr, ';');
 
-	for (auto& part : codes) {
+	for (size_t i = 0; i < codes.size(); ++i) {
 		int code = 0;
 		try {
-			code = std::stoi(part);
+			if (codes[i].empty()) {
+				code = 0; // Default code
+			} else {
+				code = std::stoi(codes[i]);
+			}
 		} catch (...) {
-			continue; // ignore invalid input, but continue with others
+			continue;
 		}
 
 		switch (code) {
 		case 0:
-			o.procState.currFG = TermColor::Default;
-			o.procState.currBG = TermColor::Default;
+			o.procState.currFG = TermColor::DefaultForeGround();
+			o.procState.currBG = TermColor::DefaultBackGround();
 			o.procState.currAttr = TextAttribute::None;
 			continue;
 		case 1:
@@ -72,71 +116,102 @@ static void applySGRColor(std::string_view codeStr) {
 		case 7:
 			o.procState.currAttr |= TextAttribute::Inverse;
 			continue;
+		case 38:
+		case 48: {
+			bool isForeground = (code == 38);
+			if (i + 1 < codes.size()) {
+				int mode = std::stoi(std::string(codes[++i]));
+				if (mode == 5 && i + 1 < codes.size()) {
+					// 256-color mode
+					int index = std::stoi(std::string(codes[++i]));
+					TermColor col = colorFrom256(index);
+					if (isForeground)
+						o.procState.currFG = col;
+					else
+						o.procState.currBG = col;
+				} else if (mode == 2 && i + 3 < codes.size()) {
+					// Truecolor mode
+					int r = std::stoi(std::string(codes[++i]));
+					int g = std::stoi(std::string(codes[++i]));
+					int b = std::stoi(std::string(codes[++i]));
+					TermColor col(r, g, b);
+					if (isForeground)
+						o.procState.currFG = col;
+					else
+						o.procState.currBG = col;
+				}
+			}
+			continue;
+		}
 		}
 
 		int normalized = code;
 		if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107))
 			normalized -= 10;
 
-		TermColor color;
+		TermColor color = TermColor(0, 0, 0);
 		switch (normalized) {
 		case 30:
-			color = TermColor::Black;
-			break;
+			color = TermColor(0, 0, 0);
+			break; // Black
 		case 31:
-			color = TermColor::Red;
-			break;
+			color = TermColor(128, 0, 0);
+			break; // Red
 		case 32:
-			color = TermColor::Green;
-			break;
+			color = TermColor(0, 128, 0);
+			break; // Green
 		case 33:
-			color = TermColor::Yellow;
-			break;
+			color = TermColor(128, 128, 0);
+			break; // Yellow
 		case 34:
-			color = TermColor::Blue;
-			break;
+			color = TermColor(0, 0, 128);
+			break; // Blue
 		case 35:
-			color = TermColor::Magenta;
-			break;
+			color = TermColor(128, 0, 128);
+			break; // Magenta
 		case 36:
-			color = TermColor::Cyan;
-			break;
+			color = TermColor(0, 128, 128);
+			break; // Cyan
 		case 37:
-			color = TermColor::White;
-			break;
+			color = TermColor(192, 192, 192);
+			break; // White
 		case 90:
-			color = TermColor::BrightBlack;
-			break;
+			color = TermColor(128, 128, 128);
+			break; // Bright Black (Gray)
 		case 91:
-			color = TermColor::BrightRed;
-			break;
+			color = TermColor(255, 0, 0);
+			break; // Bright Red
 		case 92:
-			color = TermColor::BrightGreen;
-			break;
+			color = TermColor(0, 255, 0);
+			break; // Bright Green
 		case 93:
-			color = TermColor::BrightYellow;
-			break;
+			color = TermColor(255, 255, 0);
+			break; // Bright Yellow
 		case 94:
-			color = TermColor::BrightBlue;
-			break;
+			color = TermColor(0, 0, 255);
+			break; // Bright Blue
 		case 95:
-			color = TermColor::BrightMagenta;
-			break;
+			color = TermColor(255, 0, 255);
+			break; // Bright Magenta
 		case 96:
-			color = TermColor::BrightCyan;
-			break;
+			color = TermColor(0, 255, 255);
+			break; // Bright Cyan
 		case 97:
-			color = TermColor::BrightWhite;
-			break;
+			color = TermColor(255, 255, 255);
+			break; // Bright White
 		default:
-			color = TermColor::Default;
+			color = TermColor::DefaultForeGround();
 			break;
 		}
 
-		if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97))
+
+		if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {
 			o.procState.currFG = color;
-		else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107))
+		} else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107)) {
 			o.procState.currBG = color;
+		} else {
+			std::cout << "INVALID COLOR\n";
+		}
 	}
 }
 
@@ -185,7 +260,45 @@ static void handleDECPrivateMode(std::string_view params, char finalChar) {
 		return;
 	}
 
-	TermFlags::Value flag = termFlagFromNumber(mode);
+	TermFlags::Value flag{};
+	switch (mode) {
+	case 1:
+		flag = TermFlags::INPUT_LF_TO_CRLF; // Map to input LF->CRLF
+		break;
+	case 2:
+		flag = TermFlags::INPUT_ECHO; // Echo input characters
+		break;
+	case 7:
+		flag = TermFlags::OUTPUT_WRAP_LINES; // Auto-wrap lines enabled
+		break;
+	case 25:
+		// Show cursor
+		// flag = TermFlags::SHOW_CURSOR;
+		flag = TermFlags::NONE;
+		break;
+	case 1004:
+		// Focus In/Out event reporting
+		flag = TermFlags::TRACK_FOCUS;
+		break;
+	case 1049:
+	case 1047:
+		// Alternate screen buffer
+		// flag = TermFlags::ALT_SCREEN_BUFFER;
+		flag = TermFlags::NONE;
+		break;
+	case 1048:
+		// Save cursor position
+		// flag = TermFlags::SAVE_CURSOR;
+		flag = TermFlags::NONE;
+		break;
+	case 9001:
+		// Shell specific intergration mode (nonstandard)
+		flag = TermFlags::NONE;
+		break;
+	default:
+		flag = TermFlags::NONE; // Unknown or unsupported code
+		break;
+	}
 
 	if (flag == TermFlags::NONE) {
 		return;
@@ -204,7 +317,7 @@ static void handleEraseInDisplay(int mode) {
 	switch (mode) {
 	case 0: { // Erase from cursor to end of screen
 		for (int y = o.cursorY; y < o.rows; ++y) {
-			StyledLine& line = o.screen[y];
+			StyledLine line = o.screen[y];
 			int start = (y == o.cursorY) ? o.cursorX : 0;
 			for (size_t x = start; x < line.size(); ++x) {
 				line[x] = makeStyledChar(U' ');
@@ -214,7 +327,7 @@ static void handleEraseInDisplay(int mode) {
 	}
 	case 1: { // Erase from start to cursor
 		for (int y = 0; y <= o.cursorY; ++y) {
-			StyledLine& line = o.screen[y];
+			StyledLine line = o.screen[y];
 			int end = (y == o.cursorY) ? o.cursorX : static_cast<int>(line.size());
 			for (int x = 0; x < end && x < static_cast<int>(line.size()); ++x) {
 				line[x] = makeStyledChar(U' ');
@@ -283,6 +396,7 @@ static void handleCSI() {
 		break;
 	}
 	case 'I': {
+		// may be ESC[?25I
 		int count = 1;
 		try {
 			count = std::stoi(csiData);
@@ -290,7 +404,7 @@ static void handleCSI() {
 			count = 1;
 		}
 		StyledChar blankChar = makeStyledChar(U' ');
-		StyledLine& line = o.screen[o.cursorY];
+		StyledLine line = o.screen[o.cursorY];
 		// TODO: Fix this, it should insert blanks at the cursor position
 		//line.insert(line.begin() + o.cursorX, count, blankChar);
 
@@ -320,14 +434,19 @@ static void handleCSI() {
 	case 'K': {
 		int mode = 0;
 		try {
-			mode = std::stoi(csiData);
+			if (csiData.empty())
+				mode = 0;
+			else {
+				mode = std::stoi(csiData);
+			}
 		} catch (...) {
 		}
 		if (mode == 0) {
-			StyledLine& line = o.screen[o.cursorY];
+			StyledLine line = o.screen[o.cursorY];
 			if (!line.empty()) {
-				// TODO: erase in line
-				//line.erase(line.begin() + o.cursorX, line.end());
+				for (size_t i = o.cursorX; i < line.size(); ++i) {
+					line[i] = makeStyledChar(U' ');
+				}
 			}
 		}
 		break;
@@ -341,6 +460,14 @@ static void handleCSI() {
 			}
 		}
 		handleEraseInDisplay(mode);
+		break;
+	}
+	case 'X': {
+		int numOfSpace = std::stoi(csiData);
+		StyledLine line = o.screen[o.cursorY];
+		for (int i = 0; i < numOfSpace && o.cursorX + i < line.size(); ++i) {
+			line[o.cursorX + i] = makeStyledChar(U' ');
+		}
 		break;
 	}
 	default: {
