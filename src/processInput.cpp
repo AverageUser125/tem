@@ -4,6 +4,7 @@
 #include <platform/input.h>
 #include <platform/window.h>
 #include "utf8.h"
+
 void processInput() {
 	const std::u32string& typed = platform::getTypedInput();
 	for (uint32_t ch : typed) {

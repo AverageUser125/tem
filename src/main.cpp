@@ -53,6 +53,5 @@ void startGame() {
 #ifdef _WIN32
 	o.flags |= TermFlags::INPUT_LF_TO_CRLF;
 #else
-	o.flags |= TermFlags::OUTPUT_RETURNS_INPUT;
 #endif
 }

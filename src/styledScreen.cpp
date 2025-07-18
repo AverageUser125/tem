@@ -101,8 +101,13 @@ StyledChar& StyledScreen::atCursor() {
 		}
 		o.cursorY = cellsH - 1; // Move cursor to last row
 	}
-	permaAssertDevelopement(o.cols > 0 && o.cursorX >= 0 && o.cursorX < cellsW);
-	return screen[o.cursorY * cellsW + o.cursorX];
+	// Ensure cursorX is within bounds
+	// TODO: support wrapping
+	o.cursorX = std::max(0, std::min(o.cursorX, cellsW - 1));
+
+
+	StyledChar& cursorChar = screen[o.cursorY * cellsW + o.cursorX];
+	return cursorChar;
 }
 
 std::string StyledScreen::line_to_string(const StyledLine& line) {

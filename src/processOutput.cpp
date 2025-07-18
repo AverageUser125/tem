@@ -27,6 +27,18 @@ static int stoi(std::string_view sv) {
 	}
 	return out;
 }
+
+static int stoi(std::string_view sv, int defaultVal) {
+	int out;
+	if (sv.empty() || sv.data()[0] == '\0') {
+		return defaultVal;
+	}
+	const std::from_chars_result result = std::from_chars(sv.data(), sv.data() + sv.size(), out);
+	if (result.ec == std::errc::invalid_argument || result.ec == std::errc::result_out_of_range) {
+		throw std::runtime_error("stoi failed");
+	}
+	return out;
+}
 }
 
 namespace
@@ -370,8 +382,7 @@ void handleCSI() {
 		break;
 	}
 	case 'A': {
-		// TODO: more protections
-		int moveUpBy = std::stoi(csiData);
+		int moveUpBy = std::stoi(csiData, 1);
 		if (o.cursorY > moveUpBy) {
 			o.cursorY -= moveUpBy;
 		} else {
@@ -380,30 +391,22 @@ void handleCSI() {
 		break;
 	}
 	case 'B': {
-		// TODO: more protections
-		int moveDownBy = std::stoi(csiData);
+		int moveDownBy = std::stoi(csiData, 1);
 		o.cursorY += moveDownBy;
 		break;
 	}
 	case 'C': {
-		// TODO: more protections
-		int moveForwardBy = std::stoi(csiData);
+		int moveForwardBy = std::stoi(csiData, 1);
 		o.cursorX += moveForwardBy;
 		break;
 	}
 	case 'D': {
-		// TODO: more protections
-		int moveBackwardsBy = std::stoi(csiData);
+		int moveBackwardsBy = std::stoi(csiData, 1);
 		o.cursorX -= moveBackwardsBy;
 		break;
 	}
 	case 'I': {
-		int count = 1;
-		try {
-			count = std::stoi(csiData);
-		} catch (...) {
-			count = 1;
-		}
+		int count = std::stoi(csiData, 1);
 		StyledChar blankChar = makeStyledChar(U' ');
 		StyledLine line = o.screen[o.cursorY];
 		for (int i = o.cursorX; i < line.size() && count > 0; ++i, --count) {
@@ -433,8 +436,8 @@ void handleCSI() {
 		}
 		auto params = split(csiData, ';');
 		try {
-			int row = params.size() > 0 && !params[0].empty() ? std::stoi(params[0]) : 1;
-			int col = params.size() > 1 && !params[1].empty() ? std::stoi(params[1]) : 1;
+			int row = (params.size() > 0 && !params[0].empty()) ? std::stoi(params[0]) : 1;
+			int col = (params.size() > 1 && !params[1].empty()) ? std::stoi(params[1]) : 1;
 			o.cursorY = std::max(0, row - 1);
 			o.cursorX = std::max(0, col - 1);
 		} catch (...) {
