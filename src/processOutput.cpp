@@ -67,33 +67,34 @@ std::vector<std::string_view> split(const std::string_view& str, char delimiter)
 }
 
 constexpr TermColor kBasicColors[16] = {
-	TermColor(0, 0, 0),		  // black
-	TermColor(128, 0, 0),	  // red
-	TermColor(0, 128, 0),	  // green
-	TermColor(128, 128, 0),	  // yellow
-	TermColor(0, 0, 128),	  // blue
-	TermColor(128, 0, 128),	  // magenta
-	TermColor(0, 128, 128),	  // cyan
-	TermColor(192, 192, 192), // white
-	TermColor(128, 128, 128), // bright black (gray)
-	TermColor(255, 0, 0),	  // bright red
-	TermColor(0, 255, 0),	  // bright green
-	TermColor(255, 255, 0),	  // bright yellow
-	TermColor(0, 0, 255),	  // bright blue
-	TermColor(255, 0, 255),	  // bright magenta
-	TermColor(0, 255, 255),	  // bright cyan
-	TermColor(255, 255, 255)  // bright white
+	TermColor(0, 0, 0),		  // 0: black
+	TermColor(205, 0, 0),	  // 1: red
+	TermColor(0, 205, 0),	  // 2: green
+	TermColor(205, 205, 0),	  // 3: yellow
+	TermColor(0, 0, 238),	  // 4: blue
+	TermColor(205, 0, 205),	  // 5: magenta
+	TermColor(0, 205, 205),	  // 6: cyan
+	TermColor(229, 229, 229), // 7: white (light gray)
+	TermColor(127, 127, 127), // 8: bright black (dark gray)
+	TermColor(255, 0, 0),	  // 9: bright red
+	TermColor(0, 255, 0),	  // 10: bright green
+	TermColor(255, 255, 0),	  // 11: bright yellow
+	TermColor(92, 92, 255),	  // 12: bright blue
+	TermColor(255, 0, 255),	  // 13: bright magenta
+	TermColor(0, 255, 255),	  // 14: bright cyan
+	TermColor(255, 255, 255)  // 15: bright white
 };
 
 TermColor colorFrom256(int index) {
 	// 256-color xterm palette: 16..231 is a 6x6x6 color cube
 	// index: 0-255
+	constexpr int kColorLevels[6] = {0, 95, 135, 175, 215, 255};
 	if (index >= 16 && index <= 231) {
 		int idx = index - 16;
-		int r = (idx / 36) % 6;
-		int g = (idx / 6) % 6;
-		int b = idx % 6;
-		return TermColor(r * 51, g * 51, b * 51);
+		int r = kColorLevels[(idx / 36) % 6];
+		int g = kColorLevels[(idx / 6) % 6];
+		int b = kColorLevels[idx % 6];
+		return TermColor(r, g, b);
 	}
 	// 232..255: grayscale ramp
 	if (index >= 232 && index <= 255) {
@@ -509,9 +510,10 @@ void handleCSI() {
 		}
 		break;
 	}
-	case 'r': {
+	case 'r': { 
 		// Limit scroll region
 		// example: ESC [ 1 ; 24 r, will limit from row 1 to 24. (the first row is 1)
+		// unimplemented
 		std::cout << "CSI r: " << csiData << "\n";
 		break;
 	}
@@ -619,14 +621,15 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 				i++;
 				break;
 
-			case '\b': { // Backspace
+			case '\b': { 
+				// Backspace
 				if (o.cursorX > 0) {
 					o.cursorX--;
 				}
 				i++;
 				break;
 			}
-			case '\n': {
+			case '\n': { 
 				// Commit the current line and reset
 				o.cursorX = 0;
 				o.cursorY++;
