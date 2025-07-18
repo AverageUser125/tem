@@ -357,7 +357,7 @@ void handleEraseInDisplay(int mode) {
 		break;
 	}
 	case 3: { // Erase scrollback buffer
-		o.screen.clear();
+		o.screen.clearScrollback();
 		break;
 	}
 	default:

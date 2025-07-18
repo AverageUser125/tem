@@ -63,6 +63,7 @@ class StyledScreen {
 	StyledLine back() const;
 	StyledLine operator[](int index) const;
 	void clear();
+	void clearScrollback();
 	int get_width() const;
 	int get_height() const;
 	int size() const;

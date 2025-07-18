@@ -84,6 +84,11 @@ void StyledScreen::clear() {
 	}
 }
 
+void StyledScreen::clearScrollback() {
+	clear();
+	// NOT IMPLEMENTED
+}
+
 StyledChar& StyledScreen::atCursor() {
 	if (o.cursorY >= cellsH) {
 		int offset = o.cursorY - cellsH + 1; // +1 for 0-based indexing
