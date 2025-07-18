@@ -1,6 +1,6 @@
 #include <cstdint>
 #include "main.h"
-#include "processText.h"
+#include "processOutput.h"
 #include "utf8.h"
 #include "bitflags.hpp"
 #include <string_view>
@@ -307,7 +307,8 @@ void handleDECPrivateMode(std::string_view data, bool enable) {
 		// Save/restore cursor (not implemented)
 		break;
 	case 9001:
-		// Shell integration mode (nonstandard, not implemented)
+		// Wrap pasted text in ESC[200~ and ESC[201~ sequences
+		setFlag(TermFlags::BRACKETED_PASTE, enable);
 		break;
 	default:
 		// Unknown or unsupported mode
@@ -341,7 +342,6 @@ void handleEraseInDisplay(int mode) {
 		o.screen.clear();
 		o.cursorY = 0;
 		o.cursorX = 0;
-		o.inputCursor = 0;
 		break;
 	}
 	case 3: { // Erase scrollback buffer
@@ -398,7 +398,6 @@ void handleCSI() {
 		break;
 	}
 	case 'I': {
-		// may be ESC[?25I
 		int count = 1;
 		try {
 			count = std::stoi(csiData);
@@ -407,9 +406,9 @@ void handleCSI() {
 		}
 		StyledChar blankChar = makeStyledChar(U' ');
 		StyledLine line = o.screen[o.cursorY];
-		// TODO: Fix this, it should insert blanks at the cursor position
-		//line.insert(line.begin() + o.cursorX, count, blankChar);
-
+		for (int i = o.cursorX; i < line.size() && count > 0; ++i, --count) {
+			line[i] = blankChar;
+		}
 		break;
 	}
 	case 'l':
@@ -438,8 +437,6 @@ void handleCSI() {
 			o.cursorY = std::stoi(params[0]);
 		} catch (...) {
 		}
-		// TODO: FIX THE CURSOR, split it into absolute and relative cursors
-		// or a scrollBarY and a relative cursor, just something.
 		break;
 	}
 	case 'K': {
@@ -535,15 +532,9 @@ void handleOSC() {
 }
 
 void processPartialOutputSegment(const std::vector<char>& inputSegment) {
-	size_t skip = std::min(static_cast<size_t>(o.ignoreOutputCount), inputSegment.size());
-	o.ignoreOutputCount -= static_cast<int>(skip);
-	// Insert only the part that remains
-	o.procState.leftover.insert(o.procState.leftover.end(), inputSegment.begin() + skip, inputSegment.end());
-
+	o.procState.leftover.append(inputSegment.data(), inputSegment.size());
 	std::vector<StyledChar> currentLine;
 	size_t i = 0;
-	const char* utf8Buf = nullptr;
-	const char* utf8End = nullptr;
 	std::vector<char> utf8Accum;
 
 	while (i < o.procState.leftover.size()) {
@@ -610,8 +601,8 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 				utf8Accum.push_back(c);
 				i++;
 				// Try to decode as much as possible
-				utf8Buf = utf8Accum.data();
-				utf8End = utf8Buf + utf8Accum.size();
+				const char* utf8Buf = utf8Accum.data();
+				const char* utf8End = utf8Buf + utf8Accum.size();
 				while (utf8Buf < utf8End) {
 					uint32_t cp;
 					int len = decode_utf8(utf8Buf, &cp);
@@ -701,15 +692,5 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 	if (!currentLine.empty()) {
 		o.screen.append_line(currentLine);
 		o.cursorX += currentLine.size();
-	}
-}
-
-void processInput() {
-	if (o.flags.has(TermFlags::INPUT_LF_TO_CRLF)) {
-		size_t pos = 0;
-		while ((pos = o.command.find('\n', pos)) != std::string::npos) {
-			o.command.replace(pos, 1, "\r\n");
-			pos += 2;
-		}
 	}
 }
