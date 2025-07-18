@@ -433,8 +433,10 @@ void handleCSI() {
 		}
 		auto params = split(csiData, ';');
 		try {
-			o.cursorX = std::stoi(params[1]);
-			o.cursorY = std::stoi(params[0]);
+			int row = params.size() > 0 && !params[0].empty() ? std::stoi(params[0]) : 1;
+			int col = params.size() > 1 && !params[1].empty() ? std::stoi(params[1]) : 1;
+			o.cursorY = std::max(0, row - 1);
+			o.cursorX = std::max(0, col - 1);
 		} catch (...) {
 		}
 		break;
