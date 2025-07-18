@@ -140,6 +140,12 @@ void applySGRColor(std::string_view codeStr) {
 		case 7:
 			o.procState.currAttr |= TextAttribute::Inverse;
 			continue;
+		case 39:
+			o.procState.currFG = TermColor::DefaultForeGround();
+			continue;
+		case 49:
+			o.procState.currBG = TermColor::DefaultBackGround();
+			continue;
 		case 38:
 		case 48: {
 			bool isForeground = (code == 38);
@@ -473,6 +479,47 @@ void handleCSI() {
 			}
 		}
 		handleEraseInDisplay(mode);
+		break;
+	}
+	case 'P': {
+		int numOfChars = std::stoi(csiData, 1); // Default to 1 if empty
+		StyledLine line = o.screen[o.cursorY];
+		int lineLen = static_cast<int>(line.size());
+		int start = o.cursorX;
+		int end = std::min(start + numOfChars, lineLen);
+
+		// Shift characters left
+		for (int i = start; i + numOfChars < lineLen; ++i) {
+			line[i] = line[i + numOfChars];
+		}
+		// Fill the emptied cells with spaces
+		StyledChar blankChar = makeStyledChar(U' ');
+		for (int i = lineLen - numOfChars; i < lineLen; ++i) {
+			if (i >= start) {
+				line[i] = blankChar;
+			}
+		}
+		break;
+	}
+	case 't': {
+		auto params = split(csiData, ';');
+		if (params[0] == "22") {
+			// restore window size
+			// does nothing for now
+		}
+		break;
+	}
+	case 'r': {
+		// Limit scroll region
+		// example: ESC [ 1 ; 24 r, will limit from row 1 to 24. (the first row is 1)
+		std::cout << "CSI r: " << csiData << "\n";
+		break;
+	}
+	case 'd': {
+		// Move cursor to row
+		int row = row = std::stoi(csiData, 1);
+		o.cursorY = std::max(0, row - 1);
+		o.cursorX = 0; // Reset column to 0
 		break;
 	}
 	case 'X': {
