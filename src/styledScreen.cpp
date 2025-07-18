@@ -84,40 +84,25 @@ void StyledScreen::clear() {
 	}
 }
 
-void StyledScreen::append_line(StyledLine line) {
-	int copyLen = 0;
-	if (line.size() > cellsW) {
-		copyLen = cellsW;
-	} else {
-		copyLen = line.size();
-	}
-
-	if (o.cursorY < 0 || o.cursorY >= cellsH)
-		return;
-
-	StyledLine currLine = at(o.cursorY);
-
-	// Copy line data starting at cursorX
-	int startX = std::max(0, o.cursorX);
-	int maxCopy = std::min(copyLen, cellsW - startX);
-
-	if (maxCopy > 0) {
-		memcpy(currLine.data() + startX, line.data(), sizeof(StyledChar) * maxCopy);
-	}
-}
-
-void StyledScreen::push_back(StyledLine line) {
-	// If we are at the end, we need to move everything up, use memmove
-	if (o.cursorY >= cellsH - 1) {
-		memmove(screen, screen + cellsW, sizeof(StyledChar) * (cellsH - 1) * cellsW);
-		// After shifting, set cursorY to the last valid row
-		o.cursorY = cellsH - 2;
-		// and then clear the new line
-		for (int x = 0; x < cellsW; ++x) {
-			screen[(cellsH - 1) * cellsW + x] = makeStyledChar(U' ');
+StyledChar& StyledScreen::atCursor() {
+	if (o.cursorY >= cellsH) {
+		int offset = o.cursorY - cellsH + 1; // +1 for 0-based indexing
+		// Move rows up by offset
+		for (int y = 0; y < cellsH - offset; ++y) {
+			for (int x = 0; x < cellsW; ++x) {
+				screen[y * cellsW + x] = screen[(y + offset) * cellsW + x];
+			}
 		}
+		// Clear the new bottom rows
+		for (int y = cellsH - offset; y < cellsH; ++y) {
+			for (int x = 0; x < cellsW; ++x) {
+				screen[y * cellsW + x] = makeStyledChar(U' ');
+			}
+		}
+		o.cursorY = cellsH - 1; // Move cursor to last row
 	}
-	append_line(line);
+	permaAssertDevelopement(o.cols > 0 && o.cursorX >= 0 && o.cursorX < cellsW);
+	return screen[o.cursorY * cellsW + o.cursorX];
 }
 
 std::string StyledScreen::line_to_string(const StyledLine& line) {

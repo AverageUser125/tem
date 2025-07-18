@@ -67,8 +67,7 @@ class StyledScreen {
 	int get_height() const;
 	int size() const;
 	StyledChar* data() const;
-	void append_line(StyledLine line);
-	void push_back(StyledLine line);
+	StyledChar& atCursor();
 
 	static std::string line_to_string(const StyledLine& line);
 	static std::string line_to_string(const std::vector<StyledChar>& line);

@@ -533,7 +533,6 @@ void handleOSC() {
 
 void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 	o.procState.leftover.append(inputSegment.data(), inputSegment.size());
-	std::vector<StyledChar> currentLine;
 	size_t i = 0;
 	std::vector<char> utf8Accum;
 
@@ -544,11 +543,6 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 		case ProcState::None:
 			switch (c) {
 			case '\033': { // ESC
-				if (!currentLine.empty()) {
-					o.screen.append_line(currentLine);
-					o.cursorX += currentLine.size();
-					currentLine.clear();
-				}
 				o.procState.state = ProcState::SawESC;
 				i++;
 				break;
@@ -562,35 +556,26 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 				o.screen.clear();
 				o.cursorX = 0;
 				o.cursorY = 0;
-				currentLine.clear();
 				i++;
 				break;
 
 			case '\t': // Tab
 				for (int t = 0; t < 4; ++t) {
-					currentLine.push_back(makeStyledChar(U' '));
+					o.screen.atCursor() = makeStyledChar(U' ');
 					o.cursorX++;
 				}
 				i++;
 				break;
 
-			case '\b': // Backspace
-				if (!currentLine.empty() && o.cursorX > 0) {
-					currentLine.pop_back();
+			case '\b': { // Backspace
+				if (o.cursorX > 0) {
 					o.cursorX--;
 				}
 				i++;
 				break;
-
+			}
 			case '\n': {
 				// Commit the current line and reset
-				if (!currentLine.empty() || o.cursorX > 0) {
-					o.screen.push_back(currentLine);
-					currentLine.clear();
-				} else {
-					// Even if empty, push an empty line for a bare newline
-					o.screen.push_back({});
-				}
 				o.cursorX = 0;
 				o.cursorY++;
 				i++;
@@ -610,7 +595,8 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 						break;
 					utf8Buf += len;
 
-					currentLine.push_back(makeStyledChar(cp));
+					o.screen.atCursor() = makeStyledChar(cp);
+					o.cursorX++;
 				}
 				// Remove processed bytes from utf8Accum
 				if (utf8Buf > utf8Accum.data()) {
@@ -686,11 +672,5 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 
 	if (i > 0) {
 		o.procState.leftover.erase(o.procState.leftover.begin(), o.procState.leftover.begin() + i);
-	}
-
-	// Save partial line (if any)
-	if (!currentLine.empty()) {
-		o.screen.append_line(currentLine);
-		o.cursorX += currentLine.size();
 	}
 }
