@@ -12,6 +12,7 @@
 #include <charconv>
 #include <stdexcept>
 #include "styledScreen.h"
+#include <platform/tools.h>
 
 namespace std
 {
@@ -28,7 +29,17 @@ static int stoi(std::string_view sv) {
 }
 }
 
-static std::vector<std::string_view> split(const std::string_view& str, char delimiter) {
+namespace
+{
+static void setFlag(TermFlags::Value flag, bool enable) {
+	if (enable) {
+		o.flags |= flag;
+	} else {
+		o.flags &= ~flag;
+	}
+};
+
+std::vector<std::string_view> split(const std::string_view& str, char delimiter) {
 	std::vector<std::string_view> parts;
 	size_t start = 0;
 	while (true) {
@@ -43,7 +54,26 @@ static std::vector<std::string_view> split(const std::string_view& str, char del
 	return parts;
 }
 
-static TermColor colorFrom256(int index) {
+constexpr TermColor kBasicColors[16] = {
+	TermColor(0, 0, 0),		  // black
+	TermColor(128, 0, 0),	  // red
+	TermColor(0, 128, 0),	  // green
+	TermColor(128, 128, 0),	  // yellow
+	TermColor(0, 0, 128),	  // blue
+	TermColor(128, 0, 128),	  // magenta
+	TermColor(0, 128, 128),	  // cyan
+	TermColor(192, 192, 192), // white
+	TermColor(128, 128, 128), // bright black (gray)
+	TermColor(255, 0, 0),	  // bright red
+	TermColor(0, 255, 0),	  // bright green
+	TermColor(255, 255, 0),	  // bright yellow
+	TermColor(0, 0, 255),	  // bright blue
+	TermColor(255, 0, 255),	  // bright magenta
+	TermColor(0, 255, 255),	  // bright cyan
+	TermColor(255, 255, 255)  // bright white
+};
+
+TermColor colorFrom256(int index) {
 	// 256-color xterm palette: 16..231 is a 6x6x6 color cube
 	// index: 0-255
 	if (index >= 16 && index <= 231) {
@@ -59,31 +89,13 @@ static TermColor colorFrom256(int index) {
 		return TermColor(gray, gray, gray);
 	}
 	// 0..15: standard colors (fallback to simple mapping)
-	static const TermColor basic[16] = {
-		TermColor(0, 0, 0),		  // black
-		TermColor(128, 0, 0),	  // red
-		TermColor(0, 128, 0),	  // green
-		TermColor(128, 128, 0),	  // yellow
-		TermColor(0, 0, 128),	  // blue
-		TermColor(128, 0, 128),	  // magenta
-		TermColor(0, 128, 128),	  // cyan
-		TermColor(192, 192, 192), // white
-		TermColor(128, 128, 128), // bright black (gray)
-		TermColor(255, 0, 0),	  // bright red
-		TermColor(0, 255, 0),	  // bright green
-		TermColor(255, 255, 0),	  // bright yellow
-		TermColor(0, 0, 255),	  // bright blue
-		TermColor(255, 0, 255),	  // bright magenta
-		TermColor(0, 255, 255),	  // bright cyan
-		TermColor(255, 255, 255)  // bright white
-	};
 	if (index >= 0 && index < 16)
-		return basic[index];
+		return kBasicColors[index];
 	// fallback: black
 	return TermColor(0, 0, 0);
 }
 
-static void applySGRColor(std::string_view codeStr) {
+void applySGRColor(std::string_view codeStr) {
 	auto codes = split(codeStr, ';');
 
 	for (size_t i = 0; i < codes.size(); ++i) {
@@ -120,10 +132,10 @@ static void applySGRColor(std::string_view codeStr) {
 		case 48: {
 			bool isForeground = (code == 38);
 			if (i + 1 < codes.size()) {
-				int mode = std::stoi(std::string(codes[++i]));
+				int mode = std::stoi(codes[++i]);
 				if (mode == 5 && i + 1 < codes.size()) {
 					// 256-color mode
-					int index = std::stoi(std::string(codes[++i]));
+					int index = std::stoi(codes[++i]);
 					TermColor col = colorFrom256(index);
 					if (isForeground)
 						o.procState.currFG = col;
@@ -131,9 +143,9 @@ static void applySGRColor(std::string_view codeStr) {
 						o.procState.currBG = col;
 				} else if (mode == 2 && i + 3 < codes.size()) {
 					// Truecolor mode
-					int r = std::stoi(std::string(codes[++i]));
-					int g = std::stoi(std::string(codes[++i]));
-					int b = std::stoi(std::string(codes[++i]));
+					int r = std::stoi(codes[++i]);
+					int g = std::stoi(codes[++i]);
+					int b = std::stoi(codes[++i]);
 					TermColor col(r, g, b);
 					if (isForeground)
 						o.procState.currFG = col;
@@ -145,99 +157,124 @@ static void applySGRColor(std::string_view codeStr) {
 		}
 		}
 
-		int normalized = code;
-		if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107))
-			normalized -= 10;
-
-		TermColor color = TermColor(0, 0, 0);
-		switch (normalized) {
-		case 30:
-			color = TermColor(0, 0, 0);
-			break; // Black
-		case 31:
-			color = TermColor(128, 0, 0);
-			break; // Red
-		case 32:
-			color = TermColor(0, 128, 0);
-			break; // Green
-		case 33:
-			color = TermColor(128, 128, 0);
-			break; // Yellow
-		case 34:
-			color = TermColor(0, 0, 128);
-			break; // Blue
-		case 35:
-			color = TermColor(128, 0, 128);
-			break; // Magenta
-		case 36:
-			color = TermColor(0, 128, 128);
-			break; // Cyan
-		case 37:
-			color = TermColor(192, 192, 192);
-			break; // White
-		case 90:
-			color = TermColor(128, 128, 128);
-			break; // Bright Black (Gray)
-		case 91:
-			color = TermColor(255, 0, 0);
-			break; // Bright Red
-		case 92:
-			color = TermColor(0, 255, 0);
-			break; // Bright Green
-		case 93:
-			color = TermColor(255, 255, 0);
-			break; // Bright Yellow
-		case 94:
-			color = TermColor(0, 0, 255);
-			break; // Bright Blue
-		case 95:
-			color = TermColor(255, 0, 255);
-			break; // Bright Magenta
-		case 96:
-			color = TermColor(0, 255, 255);
-			break; // Bright Cyan
-		case 97:
-			color = TermColor(255, 255, 255);
-			break; // Bright White
-		default:
-			color = TermColor::DefaultForeGround();
-			break;
+		int idx = -1;
+		bool isForeGround = false;
+		if (code >= 30 && code <= 37) {
+			idx = code - 30;
+			isForeGround = true;
+		} else if (code >= 90 && code <= 97) {
+			idx = code - 90 + 8;
+			isForeGround = true;
+		} else if (code >= 40 && code <= 47) {
+			idx = code - 40;
+			isForeGround = false;
+		} else if (code >= 100 && code <= 107) {
+			idx = code - 100 + 8;
+			isForeGround = false;
 		}
-
-
-		if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {
-			o.procState.currFG = color;
-		} else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107)) {
-			o.procState.currBG = color;
+		if (idx != -1) {
+			TermColor& target = isForeGround ? o.procState.currFG : o.procState.currBG;
+			if (idx >= 0 && idx < 16) {
+				target = kBasicColors[idx];
+			} else {
+				if (isForeGround) {
+					target = TermColor::DefaultForeGround();
+				} else {
+					target = TermColor::DefaultBackGround();
+				}
+			}
 		} else {
 			std::cout << "INVALID COLOR\n";
 		}
 	}
 }
 
-static void handleDECPrivateMode(std::string_view params, bool enable) {
-	// Handles DEC Private Mode Set/Reset sequences (e.g., ESC[?7h, ESC[?25l)
-	if (params.empty() || params[0] != '?') {
-		return; // Not a DEC private mode sequence
-	}
-
-	std::string_view modeStr = params.substr(1);
-
+void handleGraphicMode(std::string_view data, bool enable) {
 	int mode = 0;
 	try {
-		mode = std::stoi(modeStr);
+		mode = std::stoi(data);
 	} catch (...) {
 		return; // Invalid mode, ignore
 	}
 
-	// Lambda to set or clear a flag based on finalChar ('h' = set, 'l' = clear)
-	constexpr auto setFlag = [](TermFlags::Value flag, bool enable) {
-		if (enable) {
-			o.flags |= flag;
-		} else {
-			o.flags &= ~flag;
-		}
-	};
+	std::cout << "GRAPHIC MODE: " << mode << " " << (enable ? "ENABLE" : "DISABLE") << "\n";
+	switch (mode) {
+	case 0: {
+		// 40 x 25 monochrome (text)
+		break;
+	}
+	case 1: {
+		// 40 x 25 color (text)
+		break;
+	}
+	case 2: {
+		// 80 x 25 monochrome (text)
+		break;
+	}
+	case 3: {
+		// 80 x 25 color (text)
+		break;
+	}
+	case 4: {
+		// 320 x 200 4-color (graphics)
+		break;
+	}
+	case 5: {
+		// 320 x 200 monochrome (graphics)
+		break;
+	}
+	case 6: {
+		// 640 x 200 monochrome (graphics)
+		break;
+	}
+	case 7: {
+		// Enables line wrapping
+		setFlag(TermFlags::OUTPUT_WRAP_LINES, enable);
+		break;
+	}
+	case 13: {
+		// 320 x 200 color (graphics)
+		break;
+	}
+	case 14: {
+		// 640 x 200 color (16-color graphics)
+		break;
+	}
+	case 15: {
+		// 640 x 350 monochrome (2-color graphics)
+		break;
+	}
+	case 16: {
+		// 640 x 350 color (16-color graphics)
+		break;
+	}
+	case 17: {
+		// 640 x 480 monochrome (2-color graphics)
+		break;
+	}
+	case 18: {
+		// 640 x 480 color (16-color graphics)
+		break;
+	}
+	case 19: {
+		// 320 x 200 color (256-color graphics)
+		break;
+	}
+	default: {
+		// Unknown or unsupported graphic mode
+		break;
+	}
+	}
+}
+
+void handleDECPrivateMode(std::string_view data, bool enable) {
+	// Handles DEC Private Mode Set/Reset sequences (e.g., ESC[?7h, ESC[?25l)
+	int mode = 0;
+	try {
+		mode = std::stoi(data);
+	} catch (...) {
+		return; // Invalid mode, ignore
+	}
 
 	switch (mode) {
 	case 1:
@@ -278,7 +315,7 @@ static void handleDECPrivateMode(std::string_view params, bool enable) {
 	}
 }
 
-static void handleEraseInDisplay(int mode) {
+void handleEraseInDisplay(int mode) {
 	switch (mode) {
 	case 0: { // Erase from cursor to end of screen
 		for (int y = o.cursorY; y < o.rows; ++y) {
@@ -317,7 +354,7 @@ static void handleEraseInDisplay(int mode) {
 	}
 }
 
-static void handleCSI() {
+void handleCSI() {
 	std::string& csiData = o.procState.escBuf;
 	char type = csiData.back();
 	csiData.pop_back();
@@ -377,7 +414,16 @@ static void handleCSI() {
 	}
 	case 'l':
 	case 'h': {
-		handleDECPrivateMode(csiData, type == 'h');
+		if (csiData.empty()) {
+			break;
+		}
+		std::string_view data = std::string_view(csiData.data() + 1, csiData.size() - 1);
+		if (csiData[0] == '?') {
+			handleDECPrivateMode(data, type == 'h');
+		} else if (csiData[0] == '=') {
+			// handles changing the graphic mode
+			handleGraphicMode(data, type == 'h');
+		}
 		break;
 	}
 	case 'H': {
@@ -444,7 +490,7 @@ static void handleCSI() {
 	csiData.clear();
 }
 
-static void handleOSC() {
+void handleOSC() {
 	std::string& oscData = o.procState.escBuf;
 	size_t semicolonPos = oscData.find(';');
 	if (semicolonPos == std::string_view::npos) {
@@ -485,6 +531,7 @@ static void handleOSC() {
 		break;
 	}
 	oscData.clear();
+}
 }
 
 void processPartialOutputSegment(const std::vector<char>& inputSegment) {
