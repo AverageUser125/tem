@@ -390,13 +390,16 @@ void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int sc
 	if (fontSizeGlobal <= 0)
 		return;
 
-	static float time = 0.0f;
-	time += deltaTime;
+	bool visible = true;
+	if (o.flags.has(TermFlags::CURSOR_BLINK)) {
+		static float time = 0.0f;
+		time += deltaTime;
 
-	// Blink on/off every 0.5s
-	bool visible = fmod(time, 1.0f) < 0.5f;
-	if (!visible)
-		return;
+		// Blink on/off every 0.5s
+		visible = fmod(time, 1.0f) < 0.5f;
+		if (!visible)
+			return;	
+	}
 
 	auto it = glyphs.find(CURSOR_CODEPOINT);
 	if (it == glyphs.end())

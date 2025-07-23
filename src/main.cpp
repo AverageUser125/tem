@@ -56,7 +56,7 @@ void startGame() {
 	o.shell = platform::launch();
 	startRender(o.fontSize);
 
-	o.flags = TermFlags::INPUT_ECHO | TermFlags::OUTPUT_ESCAPE_CODES | TermFlags::SHOW_CURSOR;
+	o.flags = TermFlags::INPUT_ECHO | TermFlags::OUTPUT_ESCAPE_CODES | TermFlags::SHOW_CURSOR | TermFlags::CURSOR_BLINK;
 #ifdef _WIN32
 	o.flags |= TermFlags::INPUT_LF_TO_CRLF;
 #else

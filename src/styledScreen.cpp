@@ -89,6 +89,10 @@ void StyledScreen::clearScrollback() {
 	clear();
 }
 
+StyledChar* StyledScreen::data() {
+	return screen;
+}
+
 StyledChar& StyledScreen::atCursor() {
 	// TODO: Handle wraping if cursorX exceeds width
 	if (o.cursorX >= cellsW) {

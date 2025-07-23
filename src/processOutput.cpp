@@ -317,6 +317,9 @@ void handleDECPrivateMode(std::string_view data, bool enable) {
 		// Output: Auto-wrap lines
 		setFlag(TermFlags::OUTPUT_WRAP_LINES, enable);
 		break;
+	case 12:
+		setFlag(TermFlags::CURSOR_BLINK, enable);
+		break;
 	case 25:
 		// Cursor: Show or hide cursor
 		setFlag(TermFlags::SHOW_CURSOR, enable);
@@ -357,12 +360,16 @@ void handleDECPrivateMode(std::string_view data, bool enable) {
 		}
 		break;
 	}
-	case 9001:
+	case 2004:
 		// Wrap pasted text in ESC[200~ and ESC[201~ sequences
 		setFlag(TermFlags::BRACKETED_PASTE, enable);
 		break;
+	case 9001:
+		// Enable input processing for mouse events
+		break;
 	default:
 		// Unknown or unsupported mode
+		std::cout << "Unknown DEC Private Mode: " << mode << " " << (enable ? "ENABLE" : "DISABLE") << "\n";
 		break;
 	}
 }
@@ -561,6 +568,20 @@ void handleCSI() {
 		StyledLine line = o.screen[o.cursorY];
 		for (int i = 0; i < numOfSpace && o.cursorX + i < line.size(); ++i) {
 			line[o.cursorX + i] = makeStyledChar(U' ');
+		}
+		break;
+	}
+	case 'S': {
+		// Scroll up
+		int lines = std::stoi(csiData, 1);
+		o.screen.data();
+		for (int y = 0; y < o.rows - lines; ++y) {
+			o.screen[y] = o.screen[y + lines];
+		}
+		for (int y = o.rows - lines; y < o.rows; ++y) {
+			for (int x = 0; x < o.cols; ++x) {
+				o.screen[y][x] = makeStyledChar(U' ');
+			}
 		}
 		break;
 	}

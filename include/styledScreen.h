@@ -77,7 +77,7 @@ class StyledScreen {
 	int get_width() const;
 	int get_height() const;
 	int size() const;
-	StyledChar* data() const;
+	StyledChar* data();
 	StyledChar& atCursor();
 	void newLine();
 	std::vector<tcb::span<StyledChar>> getSnapshotView(int scrollbackOffset);
