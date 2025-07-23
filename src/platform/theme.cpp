@@ -34,30 +34,30 @@ void customTheme(GLFWwindow* wind) {
 
 	// Define function pointer types
 	using DwmSetWindowAttributeType =
-		HRESULT(__stdcall*)(HWND hwnd, DWORD dwAttribute, LPCVOID pvAttribute, DWORD cbAttribute);
-	using DwmExtendFrameIntoClientAreaType = HRESULT(__stdcall*)(HWND hwnd, const MARGINS* pMarInset);
-
+		HRESULT(WINAPI*)(HWND hwnd, DWORD dwAttribute, LPCVOID pvAttribute, DWORD cbAttribute);
+	using DwmExtendFrameIntoClientAreaType = HRESULT(WINAPI*)(HWND hwnd, const MARGINS* pMarInset);
 	// Get functions
 	auto fnDwmSetWindowAttribute = (DwmSetWindowAttributeType)GetProcAddress(hDwmApi, "DwmSetWindowAttribute");
 	auto fnDwmExtendFrameIntoClientArea =
 		(DwmExtendFrameIntoClientAreaType)GetProcAddress(hDwmApi, "DwmExtendFrameIntoClientArea");
 
-	if (!fnDwmSetWindowAttribute || !fnDwmExtendFrameIntoClientArea)
+	if (fnDwmSetWindowAttribute != nullptr) {
+		// Apply dark mode for content and titlebar (works on Win10+)
+		BOOL dark = TRUE;
+		fnDwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark, sizeof(dark));
+
+		// Apply Mica (only if Windows 11+)
+		int backdrop = DWMSBT_MAINWINDOW; // You can use DWMSBT_TABBEDWINDOW for higher contrast
+		fnDwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop, sizeof(backdrop));
+	}
+	if (fnDwmExtendFrameIntoClientArea != nullptr) {
+		// Enable window shadow
+		MARGINS shadow = {1, 1, 1, 1};
+		fnDwmExtendFrameIntoClientArea(hwnd, &shadow);
 		return;
-
-	// Apply dark mode for content and titlebar (optional, works on Win10+)
-	BOOL dark = TRUE;
-	fnDwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark, sizeof(dark));
-
-	// Enable window shadow
-	MARGINS shadow = {1, 1, 1, 1};
-	fnDwmExtendFrameIntoClientArea(hwnd, &shadow);
-
-	// Apply Mica (only if Windows 11+)
-	int backdrop = DWMSBT_MAINWINDOW; // You can use DWMSBT_TABBEDWINDOW for higher contrast
-	fnDwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop, sizeof(backdrop));
+	}
 }
-#elif defined(__linux__) 
+#elif defined(__linux__)
 #define GLFW_EXPOSE_NATIVE_X11
 #include <GLFW/glfw3native.h>
 #include <X11/Xlib.h>
