@@ -174,6 +174,7 @@ endif()
 
 if (GLFW_BUILD_X11)
     find_package(X11 REQUIRED)
+    target_link_libraries(glfw PUBLIC ${X11_LIBRARIES})
     target_include_directories(glfw PRIVATE "${X11_X11_INCLUDE_PATH}")
 
     # Check for XRandR (modern resolution switching and gamma control)
