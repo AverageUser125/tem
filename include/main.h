@@ -56,6 +56,7 @@ struct Data {
 	int rows = 0, cols = 0;
 	TermFlags flags;
 	int scrollbackOffset = 0;
+	ScreenState backupState;
 };
 
 extern Data o;

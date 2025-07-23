@@ -260,10 +260,11 @@ int main() {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 #endif
-	int w = 16 * 40;
-	int h = 16 * 25;
-	permaAssert(glfwInit());
+	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_FALSE);
 
+	int w = 600;
+	int h = 400;
+	permaAssert(glfwInit());
 	wind = glfwCreateWindow(w, h, "tem", nullptr, nullptr);
 	permaAssert(wind != nullptr);
 	glfwMakeContextCurrent(wind);

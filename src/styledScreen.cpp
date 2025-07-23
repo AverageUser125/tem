@@ -90,7 +90,13 @@ void StyledScreen::clearScrollback() {
 }
 
 StyledChar& StyledScreen::atCursor() {
-	permaAssertDevelopement(o.cursorX >= 0 && o.cursorX < cellsW && o.cursorY >= 0 && o.cursorY < cellsH);
+	// TODO: Handle wraping if cursorX exceeds width
+	if (o.cursorX >= cellsW) {
+		o.cursorX = cellsW - 1;
+	}
+	if (o.cursorY >= cellsH) {
+		o.cursorY = cellsH - 1;
+	}
 	StyledChar& cursorChar = screen[o.cursorY * cellsW + o.cursorX];
 	return cursorChar;
 }
@@ -117,7 +123,7 @@ void StyledScreen::newLine() {
 	o.cursorX = 0;
 }
 
-std::vector<tcb::span<StyledChar>> StyledScreen::get_snapshot_view(int scrollbackOffset) {
+std::vector<tcb::span<StyledChar>> StyledScreen::getSnapshotView(int scrollbackOffset) {
 	std::vector<tcb::span<StyledChar>> snapshot;
 	snapshot.reserve(cellsH);
 
@@ -153,7 +159,34 @@ std::vector<tcb::span<StyledChar>> StyledScreen::get_snapshot_view(int scrollbac
 	return snapshot;
 }
 
-std::string StyledScreen::line_to_string(const StyledLine& line) {
+ScreenState StyledScreen::getScreenState() const {
+	ScreenState state;
+	state.width = cellsW;
+	state.height = cellsH;
+	state.scrollback = scrollbackBuffer;
+	state.screen.assign(screen, screen + cellsW * cellsH);
+	state.cursorX = o.cursorX;
+	state.cursorY = o.cursorY;
+	return state;
+}
+
+void StyledScreen::setScreenState(const ScreenState& state) {
+	// Resize if needed
+	if (cellsW != state.width || cellsH != state.height) {
+		resize(state.width, state.height);
+	}
+	scrollbackBuffer = state.scrollback;
+	if (state.screen.size() == static_cast<size_t>(cellsW * cellsH)) {
+		std::copy(state.screen.begin(), state.screen.end(), screen);
+	} else {
+		// Fallback: clear if size mismatch
+		clear();
+	}
+	o.cursorX = state.cursorX;
+	o.cursorY = state.cursorY;
+}
+
+std::string StyledScreen::lineToString(const StyledLine& line) {
 	std::string result;
 	for (int i = 0; i < line.size(); ++i) {
 		if (line[i].ch == U'\0') {
@@ -165,7 +198,7 @@ std::string StyledScreen::line_to_string(const StyledLine& line) {
 	return result;
 }
 
-std::string StyledScreen::line_to_string(const std::vector<StyledChar>& line) {
+std::string StyledScreen::lineToString(const std::vector<StyledChar>& line) {
 	StyledLine sline = StyledLine((StyledChar*)line.data(), (size_t)line.size());
-	return line_to_string(sline);
+	return lineToString(sline);
 }

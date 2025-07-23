@@ -36,10 +36,10 @@ bool gameLogic(float deltaTime) {
 	o.scrollbackOffset += scroll;
 	if (o.scrollbackOffset <= 0) {
 		o.scrollbackOffset = 0;
-	} else if (o.scrollbackOffset >= o.screen.get_scrollback_size()) {
-		o.scrollbackOffset = o.screen.get_scrollback_size() - 1;
+	} else if (o.scrollbackOffset >= o.screen.getScrollbackSize()) {
+		o.scrollbackOffset = o.screen.getScrollbackSize() - 1;
 	}
-	auto lines = o.screen.get_snapshot_view(o.scrollbackOffset);
+	auto lines = o.screen.getSnapshotView(o.scrollbackOffset);
 	render(lines, screenW, screenH);
 	if (o.flags.has(TermFlags::SHOW_CURSOR)) {
 		renderCursor(o.cursorX, o.cursorY + o.scrollbackOffset, deltaTime, screenW, screenH);

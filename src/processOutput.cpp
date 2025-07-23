@@ -141,6 +141,15 @@ void applySGRColor(std::string_view codeStr) {
 		case 7:
 			o.procState.currAttr |= TextAttribute::Inverse;
 			continue;
+		case 22:
+			o.procState.currAttr &= ~TextAttribute::Bold;
+			continue;
+		case 24:
+			o.procState.currAttr &= ~TextAttribute::Underline;
+			continue;
+		case 27:
+			o.procState.currAttr &= ~TextAttribute::Inverse;
+			continue;
 		case 39:
 			o.procState.currFG = TermColor::DefaultForeGround();
 			continue;
@@ -316,16 +325,38 @@ void handleDECPrivateMode(std::string_view data, bool enable) {
 		// Focus: Track focus events
 		setFlag(TermFlags::TRACK_FOCUS, enable);
 		break;
-	case 1049:
-		permaAssertComment(false, "DEC Private Mode 1047 not implemented, alternate screen buffer");
+	case 1049: {
+		if (enable) {
+			// Save current screen to scrollback
+			o.backupState = o.screen.getScreenState();
+		} else {
+			o.screen.setScreenState(o.backupState);
+		}
 		break;
-	case 1047:
-		// Alternate screen buffer (not implemented)
-		permaAssertComment(false, "DEC Private Mode 1047 not implemented, alternate screen buffer");
+	}
+	case 1047: {
+		if (enable) {
+			// Save current screen to scrollback
+			o.backupState = o.screen.getScreenState();
+			o.backupState.cursorX = 0;
+			o.backupState.cursorY = 0;
+		} else {
+			o.screen.setScreenState(o.backupState);
+		}
 		break;
-	case 1048:
-		permaAssertComment(false, "DEC Private Mode 1048 not implemented, save/restor cursor");
+	}
+	case 1048: {
+		if (enable) {
+			// Save cursor position
+			o.backupState.cursorX = o.cursorX;
+			o.backupState.cursorY = o.cursorY;
+		} else {
+			// Restore cursor position
+			o.cursorX = o.backupState.cursorX;
+			o.cursorY = o.backupState.cursorY;
+		}
 		break;
+	}
 	case 9001:
 		// Wrap pasted text in ESC[200~ and ESC[201~ sequences
 		setFlag(TermFlags::BRACKETED_PASTE, enable);

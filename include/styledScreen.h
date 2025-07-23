@@ -53,6 +53,15 @@ struct StyledChar {
 	TextAttribute attr = TextAttribute::None;
 };
 
+struct ScreenState {
+	std::deque<std::vector<StyledChar>> scrollback;
+	std::vector<StyledChar> screen; // flattened, size = width * height
+	int cursorX;
+	int cursorY;
+	int width;
+	int height;
+};
+
 using StyledLine = tcb::span<StyledChar>;
 
 class StyledScreen {
@@ -71,20 +80,19 @@ class StyledScreen {
 	StyledChar* data() const;
 	StyledChar& atCursor();
 	void newLine();
-	std::vector<tcb::span<StyledChar>> get_snapshot_view(int scrollbackOffset);
+	std::vector<tcb::span<StyledChar>> getSnapshotView(int scrollbackOffset);
 
-	inline const std::deque<std::vector<StyledChar>>& get_scrollback() const {
-		return scrollbackBuffer;
-	}
+	ScreenState getScreenState() const;
+	void setScreenState(const ScreenState& state);
 
-	inline size_t get_scrollback_size() const {
+	inline size_t getScrollbackSize() const {
 		return scrollbackBuffer.size();
 	}
 
 	static constexpr size_t MaxScrollbackLines = 1000;
 
-	static std::string line_to_string(const StyledLine& line);
-	static std::string line_to_string(const std::vector<StyledChar>& line);
+	static std::string lineToString(const StyledLine& line);
+	static std::string lineToString(const std::vector<StyledChar>& line);
 
   private:
 	StyledChar* screen;
