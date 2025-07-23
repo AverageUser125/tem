@@ -641,7 +641,9 @@ void handleOSC() {
 void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 	o.procState.leftover.append(inputSegment.data(), inputSegment.size());
 	size_t i = 0;
-	std::vector<char> utf8Accum;
+
+	char utf8Accum[4]{};
+	size_t utf8AccumLen = 0;
 
 	while (i < o.procState.leftover.size()) {
 		char c = o.procState.leftover[i];
@@ -689,12 +691,12 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 				break;
 			}
 			default: {
-				// Accumulate UTF-8 bytes for decoding
-				utf8Accum.push_back(c);
-				i++;
+				if (utf8AccumLen < 4) {
+					utf8Accum[utf8AccumLen++] = c;
+				}
 				// Try to decode as much as possible
-				const char* utf8Buf = utf8Accum.data();
-				const char* utf8End = utf8Buf + utf8Accum.size();
+				const char* utf8Buf = utf8Accum;
+				const char* utf8End = utf8Accum + utf8AccumLen;
 				while (utf8Buf < utf8End) {
 					uint32_t cp;
 					int len = decode_utf8(utf8Buf, &cp);
@@ -706,9 +708,12 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 					o.cursorX++;
 				}
 				// Remove processed bytes from utf8Accum
-				if (utf8Buf > utf8Accum.data()) {
-					utf8Accum.erase(utf8Accum.begin(), utf8Accum.begin() + (utf8Buf - utf8Accum.data()));
+				size_t processed = utf8Buf - utf8Accum;
+				if (processed > 0) {
+					memmove(utf8Accum, utf8Accum + processed, utf8AccumLen - processed);
+					utf8AccumLen -= processed;
 				}
+				i++;
 				break;
 			}
 			}

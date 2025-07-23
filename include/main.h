@@ -6,11 +6,6 @@
 #include "bitflags.hpp"
 #include "styledScreen.h"
 
-namespace platform
-{
-class Process;
-}
-
 struct TermFlags {
   public:
 	enum Value : uint16_t {
