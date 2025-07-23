@@ -647,7 +647,9 @@ static void* get_proc(const char* namez);
 #ifndef _WINDOWS_
 #undef APIENTRY
 #endif
-#include <windows.h>
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <Windows.h>
 static HMODULE libGL;
 
 typedef void*(APIENTRYP PFNWGLGETPROCADDRESSPROC_PRIVATE)(const char*);
