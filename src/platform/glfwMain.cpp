@@ -9,6 +9,8 @@
 #include "gameLogic.h"
 #include <cmath>
 
+void customTheme(GLFWwindow* wind);
+
 #ifdef _WIN32
 extern "C" __declspec(dllimport) int __stdcall AllocConsole();
 #endif
@@ -410,6 +412,7 @@ int main() {
 #endif
 #endif
 #endif
+
 	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_FALSE);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 	glfwWindowHint(GLFW_SAMPLES, 4);
@@ -420,13 +423,13 @@ int main() {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 #endif
+
 	int w = 80 * 18 / 2;
 	int h = 25 * 18;
 	permaAssert(glfwInit());
 	wind = glfwCreateWindow(w, h, "tem", nullptr, nullptr);
 	permaAssert(wind != nullptr);
 	glfwSetWindowAttrib(wind, GLFW_RESIZABLE, GLFW_FALSE);
-	//glfwSetWindowSizeLimits(wind, w, h, w, h);
 	glfwMakeContextCurrent(wind);
 	glfwSwapInterval(1);
 
@@ -440,6 +443,7 @@ int main() {
 
 	permaAssert(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress));
 	enableReportGlErrors();
+	customTheme(wind);
 
 	startGame();
 	auto stop = std::chrono::high_resolution_clock::now();
