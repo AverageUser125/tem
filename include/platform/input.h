@@ -97,6 +97,7 @@ struct Button {
 		this->held |= b.held;
 	}
 };
+
 enum Modifier : uint8_t {
 	None = 0,
 	Ctrl = 1 << 0,

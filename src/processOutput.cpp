@@ -549,7 +549,7 @@ void handleCSI() {
 		}
 		break;
 	}
-	case 'r': { 
+	case 'r': {
 		// Limit scroll region
 		// example: ESC [ 1 ; 24 r, will limit from row 1 to 24. (the first row is 1)
 		// unimplemented
@@ -674,7 +674,7 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 				i++;
 				break;
 
-			case '\b': { 
+			case '\b': {
 				// Backspace
 				if (o.cursorX > 0) {
 					o.cursorX--;
@@ -682,7 +682,7 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 				i++;
 				break;
 			}
-			case '\n': { 
+			case '\n': {
 				// Commit the current line and reset
 				o.screen.newLine();
 				i++;

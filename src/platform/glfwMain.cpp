@@ -157,6 +157,7 @@ void internal::addToTypedInput(uint32_t c) {
 
 void internal::resetTypedInput() {
 	typedInput.clear();
+	specialInputEvent.clear();
 }
 }
 
@@ -486,8 +487,7 @@ int main() {
 		}
 
 		scrollLevel = 0;
-		mouseMovedFlag = 0;
-		specialInputEvent.clear();
+		mouseMovedFlag = false;
 		platform::internal::updateAllButtons(deltaTime);
 		platform::internal::resetTypedInput();
 

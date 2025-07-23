@@ -398,7 +398,7 @@ void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int sc
 		// Blink on/off every 0.5s
 		visible = fmod(time, 1.0f) < 0.5f;
 		if (!visible)
-			return;	
+			return;
 	}
 
 	auto it = glyphs.find(CURSOR_CODEPOINT);
