@@ -7,7 +7,7 @@
 #include "main.h"
 #include "styledScreen.h"
 
-void startRender(float fontSize);
+void startRender();
 void render(const std::vector<StyledLine>& screen, int screenW, int screenH);
 void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int screenH);
 void stopRender();

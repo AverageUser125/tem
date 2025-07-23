@@ -54,8 +54,9 @@ void closeGame() {
 }
 
 void startGame() {
+	o.fontSize = 18.0f;
 	shell.launch();
-	startRender(o.fontSize);
+	startRender();
 
 	o.flags = TermFlags::INPUT_ECHO | TermFlags::OUTPUT_ESCAPE_CODES | TermFlags::SHOW_CURSOR | TermFlags::CURSOR_BLINK;
 #ifdef _WIN32

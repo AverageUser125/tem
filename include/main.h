@@ -51,7 +51,7 @@ struct Data {
 	InputProcessorState procState;
 	std::string command;
 	StyledScreen screen;
-	float fontSize = 18.0f;
+	float fontSize = 0;
 	int cursorX = 0, cursorY = 0;
 	int rows = 0, cols = 0;
 	TermFlags flags;

@@ -65,8 +65,8 @@ void main() {
 )glsl";
 
 
-static constexpr int ATLAS_WIDTH = 1024;
-static constexpr int ATLAS_HEIGHT = 1024;
+static constexpr int ATLAS_WIDTH = 2048;
+static constexpr int ATLAS_HEIGHT = ATLAS_WIDTH;
 static constexpr int CURSOR_CODEPOINT = 0x2588;
 
 static stbtt_fontinfo fontInfo;
@@ -74,7 +74,6 @@ static unsigned char* ttfBuffer = nullptr;
 
 static unsigned char atlasBitmap[ATLAS_WIDTH * ATLAS_HEIGHT];
 static GLuint atlasTexture = 0;
-static float fontSizeGlobal = 0.0f;
 static float scale = 0.0f;
 static int atlasX = 0;
 static int atlasY = 0;
@@ -263,8 +262,7 @@ static void uploadAtlasTexture() {
 static float charWidth = 0;
 static float charHeight = 0;
 
-void startRender(float fontSize) {
-	fontSizeGlobal = fontSize;
+void startRender() {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	FILE* f = fopen(RESOURCES_PATH "MesloLGMNerdFontPropo-Regular.ttf", "rb");
@@ -277,7 +275,7 @@ void startRender(float fontSize) {
 	fclose(f);
 
 	permaAssertComment(stbtt_InitFont(&fontInfo, ttfBuffer, 0), "Failed to init font");
-	scale = stbtt_ScaleForPixelHeight(&fontInfo, fontSizeGlobal);
+	scale = stbtt_ScaleForPixelHeight(&fontInfo, o.fontSize);
 
 	stbtt_GetFontVMetrics(&fontInfo, &ascent, &descent, &lineGap);
 
@@ -307,7 +305,7 @@ void startRender(float fontSize) {
 void render(const std::vector<StyledLine>& screen, int screenW, int screenH) {
 	glViewport(0, 0, screenW, screenH);
 	glClear(GL_COLOR_BUFFER_BIT);
-	permaAssert(fontSizeGlobal > 0.0f);
+	permaAssert(o.fontSize > 0.0f);
 
 	glUseProgram(shaderProgram);
 	defer(glUseProgram(0));
@@ -387,9 +385,6 @@ void render(const std::vector<StyledLine>& screen, int screenW, int screenH) {
 }
 
 void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int screenH) {
-	if (fontSizeGlobal <= 0)
-		return;
-
 	bool visible = true;
 	if (o.flags.has(TermFlags::CURSOR_BLINK)) {
 		static float time = 0.0f;
@@ -473,5 +468,4 @@ void stopRender() {
 		atlasTexture = 0;
 	}
 	glyphs.clear();
-	fontSizeGlobal = 0.0f;
 }
