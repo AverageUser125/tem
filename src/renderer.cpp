@@ -36,8 +36,9 @@ void main() {
 	if (frag_uv == vec2(0.0, 0.0)) {
         out_color = frag_color;
     } else {
-        float alpha = texture(tex, frag_uv).r;
-        out_color = vec4(frag_color.rgb, frag_color.a * alpha);
+		float alpha = texture(tex, frag_uv).r;
+		vec3 premultiplied_rgb = frag_color.rgb * alpha;
+		out_color = vec4(premultiplied_rgb, alpha);
     }
 }
 )glsl";
@@ -264,7 +265,7 @@ static float charHeight = 0;
 
 void startRender() {
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	FILE* f = fopen(RESOURCES_PATH "MesloLGMNerdFontPropo-Regular.ttf", "rb");
 	permaAssertComment(f, "Failed to open font file");
 	fseek(f, 0, SEEK_END);

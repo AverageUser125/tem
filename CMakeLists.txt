@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.16)
 #! ! ! ! ! ! !
 set(PRODUCTION_BUILD OFF CACHE BOOL "Make this a production build" FORCE)
 #delete the out folder after changing if visual studio doesn recognize the change!
-option(ENABLE_ADDRESS_SANITIZER "Enable address sanitizer" ON)
+option(ENABLE_ADDRESS_SANITIZER "Enable address sanitizer" OFF)
 
 
 set(CMAKE_CXX_STANDARD 17)
