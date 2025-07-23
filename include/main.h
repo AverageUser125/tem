@@ -21,6 +21,7 @@ struct TermFlags {
 		OUTPUT_ESCAPE_CODES = 1 << 3,
 		TRACK_FOCUS = 1 << 4,
 		BRACKETED_PASTE = 1 << 5,
+		SHOW_CURSOR = 1 << 6,
 	};
 
   private:
@@ -54,7 +55,6 @@ struct Data {
 	int cursorX = 0, cursorY = 0;
 	int rows = 0, cols = 0;
 	TermFlags flags;
-	bool showCursor = true;
 	int scrollbackOffset = 0;
 };
 

@@ -310,20 +310,21 @@ void handleDECPrivateMode(std::string_view data, bool enable) {
 		break;
 	case 25:
 		// Cursor: Show or hide cursor
-		o.showCursor = enable;
+		setFlag(TermFlags::SHOW_CURSOR, enable);
 		break;
 	case 1004:
 		// Focus: Track focus events
 		setFlag(TermFlags::TRACK_FOCUS, enable);
 		break;
 	case 1049:
-		// Alternate screen buffer (not implemented)
+		permaAssertComment(false, "DEC Private Mode 1047 not implemented, alternate screen buffer");
 		break;
 	case 1047:
 		// Alternate screen buffer (not implemented)
+		permaAssertComment(false, "DEC Private Mode 1047 not implemented, alternate screen buffer");
 		break;
 	case 1048:
-		// Save/restore cursor (not implemented)
+		permaAssertComment(false, "DEC Private Mode 1048 not implemented, save/restor cursor");
 		break;
 	case 9001:
 		// Wrap pasted text in ESC[200~ and ESC[201~ sequences

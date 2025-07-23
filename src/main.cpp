@@ -41,7 +41,7 @@ bool gameLogic(float deltaTime) {
 	}
 	auto lines = o.screen.get_snapshot_view(o.scrollbackOffset);
 	render(lines, screenW, screenH);
-	if (o.showCursor) {
+	if (o.flags.has(TermFlags::SHOW_CURSOR)) {
 		renderCursor(o.cursorX, o.cursorY + o.scrollbackOffset, deltaTime, screenW, screenH);
 	}
 	return o.shell->isRunning();
@@ -56,7 +56,7 @@ void startGame() {
 	o.shell = platform::launch();
 	startRender(o.fontSize);
 
-	o.flags = TermFlags::INPUT_ECHO | TermFlags::OUTPUT_ESCAPE_CODES;
+	o.flags = TermFlags::INPUT_ECHO | TermFlags::OUTPUT_ESCAPE_CODES | TermFlags::SHOW_CURSOR;
 #ifdef _WIN32
 	o.flags |= TermFlags::INPUT_LF_TO_CRLF;
 #else
