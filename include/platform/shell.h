@@ -7,24 +7,30 @@
 namespace platform
 {
 
-struct Process {
-	virtual ~Process() = default;
-
-	virtual void write(const char* data, size_t len) = 0;
-
+class Process {
+	std::vector<char> buffer;
+#ifdef _WIN32
+	using W_HPCON = void*;
+	using W_HANDLE = void*;
+	W_HPCON hPC = nullptr;
+	W_HANDLE hInputWrite = nullptr;
+	W_HANDLE hOutputRead = nullptr;
+	W_HANDLE hProcess = nullptr;
+#else
+	int pid = -1;
+	int masterFd = -1;
+#endif
+  public:
+	Process() = default;
+	~Process();
+	void launch();
+	void write(const char* data, size_t len);
 	// Call periodically to pump in new data from the process
-	virtual void update() = 0;
-
+	void update();
 	// The buffer is updated by `update()`
-	virtual std::vector<char>& getOutputBuffer() = 0;
-
-	virtual bool isRunning() const = 0;
-
-	virtual void terminate() = 0;
+	std::vector<char>& getOutputBuffer();
+	bool isRunning() const;
+	void terminate();
 };
-
-// cmd = shell command (e.g., "cmd.exe" or "bash")
-// The returned Process* must be deleted by the user
-Process* launch();
 
 }

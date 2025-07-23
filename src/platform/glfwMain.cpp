@@ -417,8 +417,8 @@ int main() {
 #endif
 	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_FALSE);
 
-	int w = 600;
-	int h = 400;
+	int w = 80 * 18 / 2;
+	int h = 25 * 18;
 	permaAssert(glfwInit());
 	wind = glfwCreateWindow(w, h, "tem", nullptr, nullptr);
 	permaAssert(wind != nullptr);

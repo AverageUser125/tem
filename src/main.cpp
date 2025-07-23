@@ -10,6 +10,7 @@
 #include "processInput.h"
 #include "styledScreen.h"
 Data o;
+platform::Process shell;
 
 bool gameLogic(float deltaTime) {
 	int screenW, screenH;
@@ -23,11 +24,11 @@ bool gameLogic(float deltaTime) {
 	o.screen.resize(o.rows, o.cols);
 
 	processInput();
-	o.shell->write(o.command.data(), o.command.size());
+	shell.write(o.command.data(), o.command.size());
 	o.command.clear();
 
-	o.shell->update();
-	auto& buf = o.shell->getOutputBuffer();
+	shell.update();
+	auto& buf = shell.getOutputBuffer();
 	if (!buf.empty()) {
 		processPartialOutputSegment(buf);
 		buf.clear();
@@ -44,16 +45,16 @@ bool gameLogic(float deltaTime) {
 	if (o.flags.has(TermFlags::SHOW_CURSOR)) {
 		renderCursor(o.cursorX, o.cursorY + o.scrollbackOffset, deltaTime, screenW, screenH);
 	}
-	return o.shell->isRunning();
+	return shell.isRunning();
 }
 
 void closeGame() {
-	delete o.shell;
+	shell.terminate();
 	stopRender();
 }
 
 void startGame() {
-	o.shell = platform::launch();
+	shell.launch();
 	startRender(o.fontSize);
 
 	o.flags = TermFlags::INPUT_ECHO | TermFlags::OUTPUT_ESCAPE_CODES | TermFlags::SHOW_CURSOR | TermFlags::CURSOR_BLINK;
