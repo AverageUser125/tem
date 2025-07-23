@@ -31,6 +31,6 @@ class Process {
 	std::vector<char>& getOutputBuffer();
 	bool isRunning() const;
 	void terminate();
+	void resize(int collumns, int rows);
 };
-
 }

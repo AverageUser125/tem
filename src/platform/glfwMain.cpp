@@ -360,6 +360,10 @@ void getWindowSize(int* x, int* y) {
 	glfwGetWindowSize(wind, x, y);
 }
 
+void setWindowSize(int width, int height) {
+	glfwSetWindowSize(wind, width, height);
+}
+
 // Should probably be in 'input.cpp' but that doesn't have access to the 'GLFWindow*'
 const char* getClipboard() {
 	return glfwGetClipboardString(wind);
@@ -406,7 +410,8 @@ int main() {
 #endif
 #endif
 #endif
-
+	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_FALSE);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 	glfwWindowHint(GLFW_SAMPLES, 4);
 
 #ifdef __APPLE__
@@ -415,13 +420,13 @@ int main() {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 #endif
-	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_FALSE);
-
 	int w = 80 * 18 / 2;
 	int h = 25 * 18;
 	permaAssert(glfwInit());
 	wind = glfwCreateWindow(w, h, "tem", nullptr, nullptr);
 	permaAssert(wind != nullptr);
+	glfwSetWindowAttrib(wind, GLFW_RESIZABLE, GLFW_FALSE);
+	//glfwSetWindowSizeLimits(wind, w, h, w, h);
 	glfwMakeContextCurrent(wind);
 	glfwSwapInterval(1);
 

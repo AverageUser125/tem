@@ -12,6 +12,8 @@ void setFullScreen(bool f);
 //you should use getFrameBufferSize if you want the actual ammount of pixels to give to your opengl routines
 void getWindowSize(int* x, int* y);
 
+void setWindowSize(int width, int height);
+
 //usually is the same as getWindowSize unless you have things like zoom or rezolution.
 //You should use this function if you want to pass this data to glviewport
 void getFrameBufferSize(int* x, int* y);

@@ -14,7 +14,7 @@ platform::Process shell;
 
 bool gameLogic(float deltaTime) {
 	int screenW, screenH;
-	platform::getWindowSize(&screenW, &screenH);
+	platform::getFrameBufferSize(&screenW, &screenH);
 	if (platform::isButtonPressed(platform::Button::F11))
 		platform::setFullScreen(!platform::isFullScreen());
 

@@ -107,6 +107,13 @@ void Process::terminate() {
 	hOutputRead = nullptr;
 }
 
+void Process::resize(int columns, int rows) {
+	COORD size;
+	size.X = static_cast<SHORT>(columns);
+	size.Y = static_cast<SHORT>(rows);
+	HRESULT hr = ResizePseudoConsole(hPC, size);
+	permaAssertComment(!FAILED(hr), "ResizePseudoConsole failed");
+}
 } // namespace platform
 
 #else // POSIX
@@ -178,6 +185,16 @@ void Process::terminate() {
 	pid = -1;
 }
 
+void Process::resize(int columns, int rows) {
+	struct winsize ws;
+	ws.ws_col = static_cast<unsigned short>(columns);
+	ws.ws_row = static_cast<unsigned short>(rows);
+	ws.ws_xpixel = 0;
+	ws.ws_ypixel = 0;
+	int result = ioctl(masterFd, TIOCSWINSZ, &ws);
+	permaAssertComment(result != -1, "ioctl(TIOCSWINSZ) failed");
+	kill(pid, SIGWINCH);
+}
 } // namespace platform
 
 #endif
