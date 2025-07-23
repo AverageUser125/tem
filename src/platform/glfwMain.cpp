@@ -260,8 +260,8 @@ int main() {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 #endif
-	int w = 800;
-	int h = 600;
+	int w = 16 * 40;
+	int h = 16 * 25;
 	permaAssert(glfwInit());
 
 	wind = glfwCreateWindow(w, h, "tem", nullptr, nullptr);
