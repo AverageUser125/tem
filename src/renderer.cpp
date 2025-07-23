@@ -381,7 +381,7 @@ void render(const std::vector<StyledLine>& screen, int screenW, int screenH) {
 			penX += g.ax;
 		}
 	}
-
+	// TOFIX: Segfault when exiting nano
 	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_DYNAMIC_DRAW);
 	glDrawArrays(GL_TRIANGLES, 0, (GLsizei)vertices.size());
 }

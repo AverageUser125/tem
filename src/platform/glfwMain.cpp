@@ -12,13 +12,155 @@
 #ifdef _WIN32
 extern "C" __declspec(dllimport) int __stdcall AllocConsole();
 #endif
+namespace
+{
+GLFWwindow* wind = nullptr;
+bool windowFocus = true;
+bool currentFullScreen = false;
+bool fullScreen = false;
+bool mouseMovedFlag = 0;
+}
 
-static GLFWwindow* wind = nullptr;
-static bool windowFocus = true;
-static bool currentFullScreen = false;
-static bool fullScreen = false;
-static bool mouseMovedFlag = 0;
+#pragma region input
 
+namespace
+{
+platform::Button keyBoard[platform::Button::BUTTONS_COUNT];
+platform::Button leftMouse;
+platform::Button rightMouse;
+
+std::u32string typedInput;
+int scrollLevel = 0;
+std::vector<platform::SpecialInputEvent> specialInputEvent;
+}
+
+namespace platform
+{
+
+int getScrollLevel() {
+	return scrollLevel;
+}
+
+std::vector<SpecialInputEvent>& getSpecialInput() {
+	using namespace platform;
+	return specialInputEvent;
+}
+
+Button* getAllButtons() {
+	return keyBoard;
+}
+
+const Button& getLMouseButton() {
+	return leftMouse;
+}
+
+const Button& getRMouseButton() {
+	return rightMouse;
+}
+
+int isButtonHeld(int key) {
+	if (key < Button::A || key >= Button::BUTTONS_COUNT) {
+		return 0;
+	}
+
+	return keyBoard[key].held;
+}
+
+int isButtonPressed(int key) {
+	if (key < Button::A || key >= Button::BUTTONS_COUNT) {
+		return 0;
+	}
+
+	return keyBoard[key].pressed;
+}
+
+int isButtonReleased(int key) {
+	if (key < Button::A || key >= Button::BUTTONS_COUNT) {
+		return 0;
+	}
+
+	return keyBoard[key].released;
+}
+
+int isButtonTyped(int key) {
+	if (key < Button::A || key >= Button::BUTTONS_COUNT) {
+		return 0;
+	}
+
+	return keyBoard[key].typed;
+}
+
+int isLMousePressed() {
+	return leftMouse.pressed;
+}
+
+int isRMousePressed() {
+	return rightMouse.pressed;
+}
+
+int isLMouseReleased() {
+	return leftMouse.released;
+}
+
+int isRMouseReleased() {
+	return rightMouse.released;
+}
+
+int isLMouseHeld() {
+	return leftMouse.held;
+}
+
+int isRMouseHeld() {
+	return rightMouse.held;
+}
+
+const std::u32string& getTypedInput() {
+	return typedInput;
+}
+
+void internal::setButtonState(int button, int newState) {
+
+	processEventButton(keyBoard[button], newState);
+}
+
+void internal::setLeftMouseState(int newState) {
+	processEventButton(leftMouse, newState);
+}
+
+void internal::setRightMouseState(int newState) {
+	processEventButton(rightMouse, newState);
+}
+
+void internal::updateAllButtons(float deltaTime) {
+	for (int i = 0; i < Button::BUTTONS_COUNT; i++) {
+		updateButton(keyBoard[i], deltaTime);
+	}
+
+	updateButton(leftMouse, deltaTime);
+	updateButton(rightMouse, deltaTime);
+}
+
+void internal::resetInputsToZero() {
+	resetTypedInput();
+
+	for (int i = 0; i < Button::BUTTONS_COUNT; i++) {
+		resetButtonToZero(keyBoard[i]);
+	}
+
+	resetButtonToZero(leftMouse);
+	resetButtonToZero(rightMouse);
+}
+
+void internal::addToTypedInput(uint32_t c) {
+	typedInput += c;
+}
+
+void internal::resetTypedInput() {
+	typedInput.clear();
+}
+}
+
+#pragma endregion
 #pragma region callbacks
 
 namespace
@@ -119,7 +261,23 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 			platform::internal::setButtonState(platform::Button::Backspace, state);
 		}
 	}
-};
+
+	if (state == 1) {
+		bool ctrl = (mods & GLFW_MOD_CONTROL) != 0;
+		bool alt = (mods & GLFW_MOD_ALT) != 0;
+		// Don't treat shift as special, as per your requirements
+
+		if ((ctrl || alt) && key >= GLFW_KEY_A && key <= GLFW_KEY_Z) {
+			char codepoint = 'A' + (key - GLFW_KEY_A);
+			platform::Modifier mod = platform::Modifier::None;
+			if (ctrl)
+				mod = (platform::Modifier)((uint8_t)mod | (uint8_t)platform::Modifier::Ctrl);
+			if (alt)
+				mod = (platform::Modifier)((uint8_t)mod | (uint8_t)platform::Modifier::Alt);
+			specialInputEvent.push_back({mod, codepoint});
+		}
+	}
+}
 
 void mouseCallback(GLFWwindow* window, int key, int action, int mods) {
 	bool state = 0;
@@ -163,7 +321,6 @@ void characterCallback(GLFWwindow* window, unsigned int codepoint) {
 	platform::internal::addToTypedInput(codepoint);
 }
 
-static int scrollLevel = 0;
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
 	scrollLevel = yoffset;
 }
@@ -174,9 +331,6 @@ void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
 
 namespace platform
 {
-int getScrollLevel() {
-	return scrollLevel;
-}
 
 void setRelMousePosition(int x, int y) {
 	glfwSetCursorPos(wind, x, y);
@@ -333,6 +487,7 @@ int main() {
 
 		scrollLevel = 0;
 		mouseMovedFlag = 0;
+		specialInputEvent.clear();
 		platform::internal::updateAllButtons(deltaTime);
 		platform::internal::resetTypedInput();
 

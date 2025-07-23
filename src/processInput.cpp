@@ -7,14 +7,24 @@
 
 void processInput() {
 	const std::u32string& typed = platform::getTypedInput();
-	for (uint32_t ch : typed) {
+	for (char32_t ch : typed) {
 		if (ch < 32)
 			continue;
 		char buf[4]{};
 		int bytesWritten = encode_utf8(ch, buf);
 		o.command.append(buf, bytesWritten);
 	}
-
+	auto& special = platform::getSpecialInput();
+	for (platform::SpecialInputEvent cs : special) {
+		char ch = cs.key;
+		platform::Modifier mods = cs.modifiers;
+		if (mods | platform::Modifier::Ctrl) {
+			ch &= 0x1F;
+		} else if (mods | platform::Modifier::Alt) {
+			ch |= 0x80; // Set high bit for Alt
+		}
+		o.command += (char)ch;
+	}
 	if (platform::isButtonTyped(platform::Button::Backspace)) {
 		o.command.append("\x7F");
 	}

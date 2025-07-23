@@ -1,6 +1,7 @@
 #pragma once
 #include <GLFW/glfw3.h>
 #include <string>
+#include <vector>
 
 namespace platform
 {
@@ -96,6 +97,19 @@ struct Button {
 		this->held |= b.held;
 	}
 };
+enum Modifier : uint8_t {
+	None = 0,
+	Ctrl = 1 << 0,
+	Alt = 1 << 1,
+	// Shift intentionally omitted (see above)
+};
+
+struct SpecialInputEvent {
+	Modifier modifiers;
+	char key;
+};
+
+std::vector<SpecialInputEvent>& getSpecialInput();
 
 namespace internal
 {
@@ -105,99 +119,6 @@ inline void resetButtonToZero(Button& b) {
 	b.released = 0;
 }
 }
-
-struct Controller {
-	enum Buttons {
-		A = GLFW_GAMEPAD_BUTTON_A,
-		B = GLFW_GAMEPAD_BUTTON_B,
-		X = GLFW_GAMEPAD_BUTTON_X,
-		Y = GLFW_GAMEPAD_BUTTON_Y,
-		LBumper = GLFW_GAMEPAD_BUTTON_LEFT_BUMPER,
-		RBumper = GLFW_GAMEPAD_BUTTON_RIGHT_BUMPER,
-		Back = GLFW_GAMEPAD_BUTTON_BACK,
-		Start = GLFW_GAMEPAD_BUTTON_START,
-		Guide = GLFW_GAMEPAD_BUTTON_GUIDE,
-		LThumb = GLFW_GAMEPAD_BUTTON_LEFT_THUMB,
-		Rthumb = GLFW_GAMEPAD_BUTTON_RIGHT_THUMB,
-		Up = GLFW_GAMEPAD_BUTTON_DPAD_UP,
-		Right = GLFW_GAMEPAD_BUTTON_DPAD_RIGHT,
-		Down = GLFW_GAMEPAD_BUTTON_DPAD_DOWN,
-		Left = GLFW_GAMEPAD_BUTTON_DPAD_LEFT,
-	};
-
-	Button buttons[GLFW_GAMEPAD_BUTTON_LAST + 1] = {};
-
-	float LT = 0.f;
-	float RT = 0.f;
-
-	struct {
-		float x = 0.f, y = 0.f;
-	} LStick, RStick;
-
-	void setAllToZero() {
-		*this = Controller();
-	}
-};
-
-struct Input {
-	//typed input doesn't work with mouse buttons
-	Button lMouse = {};
-	Button rMouse = {};
-
-	//mouse position relative to window
-	int mouseX = 0;
-	int mouseY = 0;
-
-	Button buttons[Button::BUTTONS_COUNT] = {};
-
-	char typedInput[20] = {};
-
-	float deltaTime = 0;
-
-	bool hasFocus = 0;
-
-	Controller controller = {};
-
-	int isButtonHeld(int key) {
-		return buttons[key].held;
-	};
-
-	int isButtonPressed(int key) {
-		return buttons[key].pressed;
-	};
-
-	int isButtonReleased(int key) {
-		return buttons[key].released;
-	};
-
-	int isButtonTyped(int key) {
-		return buttons[key].typed;
-	};
-
-	int isLMousePressed() {
-		return lMouse.pressed;
-	};
-
-	int isRMousePressed() {
-		return rMouse.pressed;
-	};
-
-	int isLMouseReleased() {
-		return lMouse.released;
-	};
-
-	int isRMouseReleased() {
-		return rMouse.released;
-	};
-
-	int isLMouseHeld() {
-		return lMouse.held;
-	};
-
-	int isRMouseHeld() {
-		return rMouse.held;
-	};
-};
 
 platform::Button* getAllButtons();
 
@@ -218,8 +139,6 @@ int isRMouseHeld();
 
 const Button& getLMouseButton();
 const Button& getRMouseButton();
-
-const Controller& getControllerButtons();
 
 const std::u32string& getTypedInput();
 
@@ -285,6 +204,5 @@ void resetInputsToZero();
 
 void addToTypedInput(uint32_t c);
 void resetTypedInput();
-
 };
 };
