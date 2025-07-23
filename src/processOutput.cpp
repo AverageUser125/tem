@@ -698,7 +698,7 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 				const char* utf8Buf = utf8Accum;
 				const char* utf8End = utf8Accum + utf8AccumLen;
 				while (utf8Buf < utf8End) {
-					uint32_t cp;
+					char32_t cp;
 					int len = decode_utf8(utf8Buf, &cp);
 					if (len <= 0 || utf8Buf + len > utf8End)
 						break;

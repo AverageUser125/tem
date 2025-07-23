@@ -203,7 +203,7 @@ inline void updateButton(Button& b, float deltaTime) {
 void updateAllButtons(float deltaTime);
 void resetInputsToZero();
 
-void addToTypedInput(uint32_t c);
+void addToTypedInput(char32_t c);
 void resetTypedInput();
 };
 };

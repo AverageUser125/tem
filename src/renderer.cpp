@@ -80,7 +80,7 @@ static int atlasX = 0;
 static int atlasY = 0;
 static int atlasRowHeight = 0;
 
-static std::unordered_map<uint32_t, Glyph> glyphs;
+static std::unordered_map<char32_t, Glyph> glyphs;
 
 static int ascent = 0;
 static int descent = 0;
@@ -129,7 +129,7 @@ static GLuint createShaderProgram() {
 	return program;
 }
 
-static bool tryPackGlyph(uint32_t cp) {
+static bool tryPackGlyph(char32_t cp) {
 	if (glyphs.find(cp) != glyphs.end())
 		return true;
 
@@ -174,7 +174,7 @@ static bool tryPackGlyph(uint32_t cp) {
 	return true;
 }
 
-static void loadGlyphIfNeeded(uint32_t cp) {
+static void loadGlyphIfNeeded(char32_t cp) {
 	if (glyphs.find(cp) != glyphs.end())
 		return;
 
@@ -188,13 +188,13 @@ static void loadGlyphIfNeeded(uint32_t cp) {
 	uploadAtlasTexture();
 }
 
-static void buildAtlasIncremental(const std::vector<uint32_t>& codepoints) {
+static void buildAtlasIncremental(const std::vector<char32_t>& codepoints) {
 	int x = 0, y = 0, rowHeight = 0;
 
 	memset(atlasBitmap, 0, sizeof(atlasBitmap));
 	glyphs.clear();
 
-	for (uint32_t cp : codepoints) {
+	for (char32_t cp : codepoints) {
 		int glyphIndex = stbtt_FindGlyphIndex(&fontInfo, cp);
 		if (glyphIndex == 0) {
 			// Skip missing glyphs
@@ -287,8 +287,8 @@ void startRender() {
 	shaderProgram = createShaderProgram();
 
 	// Prebake ASCII range 32..126 at start
-	std::vector<uint32_t> asciiRange;
-	for (uint32_t cp = 32; cp <= 126; cp++)
+	std::vector<char32_t> asciiRange;
+	for (char32_t cp = 32; cp <= 126; cp++)
 		asciiRange.push_back(cp);
 	asciiRange.push_back(CURSOR_CODEPOINT);
 

@@ -1,6 +1,6 @@
 #include "utf8.h"
 
-int decode_utf8(const char* s, uint32_t* codepoint) {
+int decode_utf8(const char* s, char32_t* codepoint) {
 	uint8_t c = static_cast<uint8_t>(s[0]);
 
 	if (c < 0x80) {
@@ -27,7 +27,7 @@ int decode_utf8(const char* s, uint32_t* codepoint) {
 	return 0; // invalid: > 4-byte UTF-8 (not supported)
 }
 
-int encode_utf8(uint32_t codepoint, char* out) {
+int encode_utf8(char32_t codepoint, char* out) {
 	if (codepoint <= 0x7F) {
 		out[0] = codepoint;
 		out[1] = '\0';
@@ -58,7 +58,7 @@ int encode_utf8(uint32_t codepoint, char* out) {
 
 int get_length(std::string_view sv) {
 	int i = 0;
-	uint32_t codepoint;
+	char32_t codepoint;
 	for (i = 0; i < sv.size(); i++) {
 		int len = decode_utf8(sv.data() + i, &codepoint);
 		if (len == 0) {
@@ -70,7 +70,7 @@ int get_length(std::string_view sv) {
 }
 
 int codepoint_length(const char* s) {
-	uint32_t codepoint;
+	char32_t codepoint;
 	int len = decode_utf8(s, &codepoint);
 	return len;
 }

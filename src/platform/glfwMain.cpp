@@ -153,7 +153,7 @@ void internal::resetInputsToZero() {
 	resetButtonToZero(rightMouse);
 }
 
-void internal::addToTypedInput(uint32_t c) {
+void internal::addToTypedInput(char32_t c) {
 	typedInput += c;
 }
 
