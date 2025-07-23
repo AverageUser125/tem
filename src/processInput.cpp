@@ -49,6 +49,10 @@ void processInput() {
 		o.command += '\n';
 	}
 
+	if (!o.command.empty()) {
+		o.scrollbackOffset = 0;
+	}
+
 	if (o.flags.has(TermFlags::INPUT_LF_TO_CRLF)) {
 		size_t pos = 0;
 		while ((pos = o.command.find('\n', pos)) != std::string::npos) {

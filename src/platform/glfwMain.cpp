@@ -21,6 +21,9 @@ static bool mouseMovedFlag = 0;
 
 #pragma region callbacks
 
+namespace
+{
+
 //https://stackoverflow.com/questions/21421074/how-to-create-a-full-screen-window-on-the-current-monitor-with-glfw
 GLFWmonitor* getCurrentMonitor(GLFWwindow* window) {
 	int nmonitors, i;
@@ -160,11 +163,21 @@ void characterCallback(GLFWwindow* window, unsigned int codepoint) {
 	platform::internal::addToTypedInput(codepoint);
 }
 
+static int scrollLevel = 0;
+void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+	scrollLevel = yoffset;
+}
+}
+
 #pragma endregion
 #pragma region platform functions
 
 namespace platform
 {
+int getScrollLevel() {
+	return scrollLevel;
+}
+
 void setRelMousePosition(int x, int y) {
 	glfwSetCursorPos(wind, x, y);
 }
@@ -262,6 +275,7 @@ int main() {
 	glfwSetWindowSizeCallback(wind, windowSizeCallback);
 	glfwSetCursorPosCallback(wind, cursorPositionCallback);
 	glfwSetCharCallback(wind, characterCallback);
+	glfwSetScrollCallback(wind, scrollCallback);
 
 	permaAssert(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress));
 	enableReportGlErrors();
@@ -316,6 +330,7 @@ int main() {
 			}
 		}
 
+		scrollLevel = 0;
 		mouseMovedFlag = 0;
 		platform::internal::updateAllButtons(deltaTime);
 		platform::internal::resetTypedInput();

@@ -32,10 +32,17 @@ bool gameLogic(float deltaTime) {
 		processPartialOutputSegment(buf);
 		buf.clear();
 	}
-
-	render(o.screen, screenW, screenH);
+	int scroll = platform::getScrollLevel();
+	o.scrollbackOffset += scroll;
+	if (o.scrollbackOffset <= 0) {
+		o.scrollbackOffset = 0;
+	} else if (o.scrollbackOffset >= o.screen.get_scrollback_size()) {
+		o.scrollbackOffset = o.screen.get_scrollback_size() - 1;
+	}
+	auto lines = o.screen.get_snapshot_view(o.scrollbackOffset);
+	render(lines, screenW, screenH);
 	if (o.showCursor) {
-		renderCursor(o.cursorX, o.cursorY, deltaTime, screenW, screenH);
+		renderCursor(o.cursorX, o.cursorY + o.scrollbackOffset, deltaTime, screenW, screenH);
 	}
 	return o.shell->isRunning();
 }

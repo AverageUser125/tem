@@ -2,6 +2,7 @@
 #include "bitflags.hpp"
 #include "span.hpp"
 #include <vector>
+#include <deque>
 
 struct TermColor {
 	unsigned char r;
@@ -69,6 +70,18 @@ class StyledScreen {
 	int size() const;
 	StyledChar* data() const;
 	StyledChar& atCursor();
+	void newLine();
+	std::vector<tcb::span<StyledChar>> get_snapshot_view(int scrollbackOffset);
+
+	inline const std::deque<std::vector<StyledChar>>& get_scrollback() const {
+		return scrollbackBuffer;
+	}
+
+	inline size_t get_scrollback_size() const {
+		return scrollbackBuffer.size();
+	}
+
+	static constexpr size_t MaxScrollbackLines = 1000;
 
 	static std::string line_to_string(const StyledLine& line);
 	static std::string line_to_string(const std::vector<StyledChar>& line);
@@ -77,6 +90,7 @@ class StyledScreen {
 	StyledChar* screen;
 	int cellsW;
 	int cellsH;
+	std::deque<std::vector<StyledChar>> scrollbackBuffer;
 };
 
 StyledChar makeStyledChar(char32_t ch);

@@ -631,8 +631,7 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 			}
 			case '\n': { 
 				// Commit the current line and reset
-				o.cursorX = 0;
-				o.cursorY++;
+				o.screen.newLine();
 				i++;
 				break;
 			}

@@ -201,6 +201,7 @@ struct Input {
 
 platform::Button* getAllButtons();
 
+int getScrollLevel();
 int isButtonHeld(int key);
 int isButtonPressed(int key);
 int isButtonReleased(int key);

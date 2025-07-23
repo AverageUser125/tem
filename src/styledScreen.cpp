@@ -85,34 +85,72 @@ void StyledScreen::clear() {
 }
 
 void StyledScreen::clearScrollback() {
+	scrollbackBuffer.clear();
 	clear();
-	// NOT IMPLEMENTED
 }
 
 StyledChar& StyledScreen::atCursor() {
-	if (o.cursorY >= cellsH) {
-		int offset = o.cursorY - cellsH + 1; // +1 for 0-based indexing
-		// Move rows up by offset
-		for (int y = 0; y < cellsH - offset; ++y) {
-			for (int x = 0; x < cellsW; ++x) {
-				screen[y * cellsW + x] = screen[(y + offset) * cellsW + x];
-			}
-		}
-		// Clear the new bottom rows
-		for (int y = cellsH - offset; y < cellsH; ++y) {
-			for (int x = 0; x < cellsW; ++x) {
-				screen[y * cellsW + x] = makeStyledChar(U' ');
-			}
-		}
-		o.cursorY = cellsH - 1; // Move cursor to last row
-	}
-	// Ensure cursorX is within bounds
-	// TODO: support wrapping
-	o.cursorX = std::max(0, std::min(o.cursorX, cellsW - 1));
-
-
+	permaAssertDevelopement(o.cursorX >= 0 && o.cursorX < cellsW && o.cursorY >= 0 && o.cursorY < cellsH);
 	StyledChar& cursorChar = screen[o.cursorY * cellsW + o.cursorX];
 	return cursorChar;
+}
+
+void StyledScreen::newLine() {
+	// Save the top line to scrollback if we're at the bottom
+	if (o.cursorY >= cellsH - 1) {
+		// Copy the first line to scrollback
+		std::vector<StyledChar> line(screen, screen + cellsW);
+		scrollbackBuffer.push_back(std::move(line));
+		if (scrollbackBuffer.size() > MaxScrollbackLines) {
+			scrollbackBuffer.pop_front();
+		}
+		// Scroll all lines up
+		memmove(screen, screen + cellsW, sizeof(StyledChar) * cellsW * (cellsH - 1));
+		// Clear the last line
+		for (int x = 0; x < cellsW; ++x) {
+			screen[(cellsH - 1) * cellsW + x] = makeStyledChar(U' ');
+		}
+		o.cursorY = cellsH - 1;
+	} else {
+		o.cursorY++;
+	}
+	o.cursorX = 0;
+}
+
+std::vector<tcb::span<StyledChar>> StyledScreen::get_snapshot_view(int scrollbackOffset) {
+	std::vector<tcb::span<StyledChar>> snapshot;
+	snapshot.reserve(cellsH);
+
+	// Clamp scrollbackOffset to valid range
+	int maxScroll = static_cast<int>(scrollbackBuffer.size());
+	if (scrollbackOffset < 0)
+		scrollbackOffset = 0;
+	if (scrollbackOffset > maxScroll)
+		scrollbackOffset = maxScroll;
+
+	// The first line to show is at: scrollbackBuffer.size() - scrollbackOffset
+	int firstLineIdx = maxScroll - scrollbackOffset;
+
+	for (int i = 0; i < cellsH; ++i) {
+		int lineIdx = firstLineIdx + i;
+		if (lineIdx < 0) {
+			// Not enough scrollback, show blank line
+			snapshot.emplace_back();
+		} else if (lineIdx < maxScroll) {
+			// From scrollback buffer
+			std::vector<StyledChar>& vec = scrollbackBuffer[lineIdx];
+			snapshot.emplace_back(vec.data(), vec.size());
+		} else {
+			// From current screen
+			int screenLine = lineIdx - maxScroll;
+			if (screenLine < cellsH) {
+				snapshot.emplace_back(screen + screenLine * cellsW, cellsW);
+			} else {
+				snapshot.emplace_back();
+			}
+		}
+	}
+	return snapshot;
 }
 
 std::string StyledScreen::line_to_string(const StyledLine& line) {

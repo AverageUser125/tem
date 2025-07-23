@@ -304,7 +304,7 @@ void startRender(float fontSize) {
 	charHeight = (float)(ascent - descent + lineGap) * scale;
 }
 
-void render(StyledScreen& screen, int screenW, int screenH) {
+void render(const std::vector<StyledLine>& screen, int screenW, int screenH) {
 	glViewport(0, 0, screenW, screenH);
 	glClear(GL_COLOR_BUFFER_BIT);
 	permaAssert(fontSizeGlobal > 0.0f);

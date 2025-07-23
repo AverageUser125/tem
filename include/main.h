@@ -55,6 +55,7 @@ struct Data {
 	int rows = 0, cols = 0;
 	TermFlags flags;
 	bool showCursor = true;
+	int scrollbackOffset = 0;
 };
 
 extern Data o;
