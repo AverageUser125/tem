@@ -254,8 +254,8 @@ static void uploadAtlasTexture() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 }
 
 // Internal constant from startRender
@@ -343,8 +343,8 @@ void render(const std::vector<StyledLine>& screen, int screenW, int screenH) {
 			loadGlyphIfNeeded(stc.ch);
 			const Glyph& g = glyphs.at(stc.ch);
 
-			float x0 = penX + g.bl;
-			float y0 = baselineY + g.bt;
+			float x0 = std::round(penX + g.bl);
+			float y0 = std::round(baselineY + g.bt);
 			float x1 = x0 + g.bw;
 			float y1 = y0 + g.bh;
 
