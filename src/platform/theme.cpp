@@ -52,7 +52,7 @@ void customTheme(GLFWwindow* wind) {
 	}
 	if (fnDwmExtendFrameIntoClientArea != nullptr) {
 		// Enable window shadow
-		MARGINS shadow = {1, 1, 1, 1};
+		MARGINS shadow = {2, 2, 2, 2};
 		fnDwmExtendFrameIntoClientArea(hwnd, &shadow);
 		return;
 	}

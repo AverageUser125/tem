@@ -71,6 +71,13 @@ add_subdirectory(thirdparty/stb)            #font loader
 # DON'T ADD THE SOURCES BY HAND, they are already added with this macro
 file(GLOB_RECURSE MY_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 
+if(WIN32)
+    set(MY_SOURCES
+        ${MY_SOURCES}
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/resources.rc"
+    )
+endif()
+
 add_executable("${CMAKE_PROJECT_NAME}")
 
 set_property(TARGET "${CMAKE_PROJECT_NAME}" PROPERTY CXX_STANDARD 17)
