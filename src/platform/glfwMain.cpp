@@ -121,7 +121,6 @@ const std::u32string& getTypedInput() {
 }
 
 void internal::setButtonState(int button, int newState) {
-
 	processEventButton(keyBoard[button], newState);
 }
 
@@ -370,11 +369,7 @@ void setWindowSize(int width, int height) {
 }
 
 bool hasWindowSizeChanged() {
-	if (hasBeinResized) {
-		hasBeinResized = false;
-		return true;
-	}
-	return false;
+	return hasBeinResized;
 }
 
 // Should probably be in 'input.cpp' but that doesn't have access to the 'GLFWindow*'
@@ -462,7 +457,7 @@ int main() {
 	permaAssert(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress));
 	enableReportGlErrors();
 	customTheme(wind);
-
+	
 	startGame();
 	auto stop = std::chrono::high_resolution_clock::now();
 	while (!glfwWindowShouldClose(wind)) {
@@ -515,6 +510,7 @@ int main() {
 
 		scrollLevel = 0;
 		mouseMovedFlag = false;
+		hasBeinResized = false;
 		platform::internal::updateAllButtons(deltaTime);
 		platform::internal::resetTypedInput();
 

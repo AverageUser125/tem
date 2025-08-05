@@ -75,7 +75,7 @@ void startGame() {
 	platform::setWindowSize(o.rows * o.fontWidth, o.cols * o.fontHeight);
 	platform::changeVisibility(true);
 
-	o.flags = TermFlags::INPUT_ECHO | TermFlags::OUTPUT_ESCAPE_CODES | TermFlags::SHOW_CURSOR | TermFlags::CURSOR_BLINK;
+	o.flags = TermFlags::INPUT_ECHO | TermFlags::OUTPUT_ESCAPE_CODES | TermFlags::SHOW_CURSOR | TermFlags::CURSOR_BLINK | TermFlags::OUTPUT_WRAP_LINES;
 #ifdef _WIN32
 	o.flags |= TermFlags::INPUT_LF_TO_CRLF;
 #else

@@ -2,6 +2,7 @@
 #include <GLFW/glfw3.h>
 #include <string>
 #include <vector>
+#include <iostream>
 
 namespace platform
 {
@@ -185,7 +186,7 @@ inline void updateButton(Button& b, float deltaTime) {
 		b.typedTime -= deltaTime;
 
 		if (b.typedTime < 0.f) {
-			b.typedTime += 0.07f;
+			b.typedTime += 0.035f;
 			b.typed = true;
 		} else {
 			b.typed = false;
