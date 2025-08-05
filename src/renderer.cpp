@@ -332,7 +332,7 @@ void render(const std::vector<StyledLine>& screen, int screenW, int screenH) {
 		float penX = 0;
 		float baselineY = yStart + ascent * scale + lineIndex * lineHeight;
 		StyledLine line = screen[lineIndex];
-		for (const StyledChar& stc : line) {
+		for (StyledChar stc : line) {
 			if (stc.ch == '\r')
 				continue;
 
@@ -343,6 +343,12 @@ void render(const std::vector<StyledLine>& screen, int screenW, int screenH) {
 			float y0 = std::round(baselineY + g.bt);
 			float x1 = x0 + g.bw;
 			float y1 = y0 + g.bh;
+			
+			if(stc.attr.has(TextAttribute::Inverse)) {
+				// Inverse colors
+				stc.fg = TermColor{255 - stc.fg.r, 255 - stc.fg.g, 255 - stc.fg.b};
+				stc.bg = TermColor{255 - stc.bg.r, 255 - stc.bg.g, 255 - stc.bg.b};
+			}
 
 			if (stc.bg != TermColor::DefaultBackGround()) {
 				float bgX0 = penX;
