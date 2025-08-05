@@ -322,6 +322,9 @@ void handleDECPrivateMode(std::string_view data, bool enable) {
 		// Input: Echo input characters
 		setFlag(TermFlags::INPUT_ECHO, enable);
 		break;
+	case 3:
+		// Switch to 132-column mode (wide mode)
+		break;
 	case 7:
 		// Output: Auto-wrap lines
 		setFlag(TermFlags::OUTPUT_WRAP_LINES, enable);
@@ -332,6 +335,9 @@ void handleDECPrivateMode(std::string_view data, bool enable) {
 	case 25:
 		// Cursor: Show or hide cursor
 		setFlag(TermFlags::SHOW_CURSOR, enable);
+		break;
+	case 69:
+		setFlag(TermFlags::ALLOW_HORIZONTAL_SCROLL_MARGIN, enable);
 		break;
 	case 1004:
 		// Focus: Track focus events
@@ -594,6 +600,16 @@ void handleCSI() {
 		}
 		break;
 	}
+	case 'p': {
+		if (csiData.empty() || csiData[0] != '!') {
+			break;
+		}
+		o.flags |= TermFlags::OUTPUT_WRAP_LINES;
+		o.flags |= TermFlags::OUTPUT_ESCAPE_CODES;
+		o.needResize = true;
+		break;
+
+	}
 	default: {
 		std::cout << "[" << type << "]'" << csiData << "'\n";
 		break;
@@ -782,6 +798,22 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 			i++;
 			break;
 		}
+		}
+
+		if (o.flags.has(TermFlags::OUTPUT_WRAP_LINES)) {
+			if (o.cursorX >= o.rows) {
+#ifdef _WIN32
+				if (o.cursorY < o.cols - 2) {
+#endif
+					o.cursorX = 0;
+					o.screen.newLine(); // Move to next line if we wrap
+#ifdef _WIN32
+				}
+#endif
+
+			}
+		} else if (o.cursorX >= o.rows) {
+			// aaaaao.cursorX = o.rows - 1;
 		}
 	}
 

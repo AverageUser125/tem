@@ -18,6 +18,7 @@ struct TermFlags {
 		BRACKETED_PASTE = 1 << 5,
 		SHOW_CURSOR = 1 << 6,
 		CURSOR_BLINK = 1 << 7,
+		ALLOW_HORIZONTAL_SCROLL_MARGIN = 1 << 8,
 	};
 
   private:

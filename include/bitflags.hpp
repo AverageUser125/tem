@@ -43,6 +43,10 @@
 		value = static_cast<Value>(static_cast<U>(value) | static_cast<U>(other.value));                               \
 		return *this;                                                                                                  \
 	}                                                                                                                  \
+	inline Name& operator|=(int other) {                                                                              \
+		value = static_cast<Value>(static_cast<U>(value) | static_cast<U>(other));                               \
+		return *this;                                                                                                  \
+	}                                                                                                                  \
 	inline Name& operator&=(int other) {                                                                               \
 		value = static_cast<Value>(static_cast<U>(value) & static_cast<U>(other));                                     \
 		return *this;                                                                                                  \

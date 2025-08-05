@@ -185,8 +185,8 @@ void Process::terminate() {
 	pid = -1;
 }
 
-void Process::resize(int columns, int rows) {
-	struct winsize ws;
+void Process::resize(int rows, int columns) {
+	struct winsize ws{};
 	ws.ws_col = static_cast<unsigned short>(columns);
 	ws.ws_row = static_cast<unsigned short>(rows);
 	ws.ws_xpixel = 0;

@@ -94,7 +94,6 @@ StyledChar* StyledScreen::data() {
 }
 
 StyledChar& StyledScreen::atCursor() {
-	// TODO: Handle wraping if cursorX exceeds width
 	if (o.cursorX >= cellsW) {
 		o.cursorX = cellsW - 1;
 	}

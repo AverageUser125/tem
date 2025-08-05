@@ -10,6 +10,7 @@
 #include "processOutput.h"
 #include "processInput.h"
 #include "styledScreen.h"
+#include <cmath>
 Data o;
 static platform::Process shell;
 
@@ -29,8 +30,8 @@ bool gameLogic(float deltaTime) {
 	if (platform::hasWindowSizeChanged()) {
 		int w, h;
 		platform::getWindowSize(&w, &h);
-		o.cols = h / o.fontHeight;
-		o.rows = w / o.fontWidth;
+		o.cols = std::round(h / o.fontHeight);
+		o.rows = std::round(w / o.fontWidth);
 		o.screen.resize(o.rows, o.cols);
 		shell.resize(o.rows, o.cols);
 	}
