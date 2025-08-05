@@ -124,7 +124,6 @@ void StyledScreen::newLine() {
 	} else {
 		o.cursorY++;
 	}
-	o.cursorX = 0;
 }
 
 std::vector<tcb::span<StyledChar>> StyledScreen::getSnapshotView(int scrollbackOffset) {

@@ -14,6 +14,8 @@ void getWindowSize(int* x, int* y);
 
 void setWindowSize(int width, int height);
 
+bool hasWindowSizeChanged();
+
 //usually is the same as getWindowSize unless you have things like zoom or rezolution.
 //You should use this function if you want to pass this data to glviewport
 void getFrameBufferSize(int* x, int* y);
@@ -24,6 +26,8 @@ void getRelMousePosition(int* x, int* y);
 void showMouse(bool show);
 bool hasFocused();
 bool mouseMoved();
+
+void changeVisibility(bool vis);
 
 void setWindowTitle(const char* title);
 

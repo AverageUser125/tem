@@ -2,6 +2,7 @@
 #include <platform/window.h>
 #include <platform/input.h>
 #include <platform/shell.h>
+#include <platform/tools.h>
 #include <iostream>
 #include "renderer.h"
 #include "utf8.h"
@@ -10,7 +11,7 @@
 #include "processInput.h"
 #include "styledScreen.h"
 Data o;
-platform::Process shell;
+static platform::Process shell;
 
 bool gameLogic(float deltaTime) {
 	int screenW, screenH;
@@ -18,10 +19,21 @@ bool gameLogic(float deltaTime) {
 	if (platform::isButtonPressed(platform::Button::F11))
 		platform::setFullScreen(!platform::isFullScreen());
 
-	// Assumes monospace font
-	o.cols = screenH / o.fontSize;
-	o.rows = 2 * screenW / o.fontSize;
-	o.screen.resize(o.rows, o.cols);
+	if (o.needResize) {
+		// for changing graphics mode modes
+		o.screen.resize(o.rows, o.cols);
+		shell.launch(o.rows, o.cols);
+		platform::setWindowSize(o.rows * o.fontWidth, o.cols * o.fontHeight);
+		o.needResize = false;
+	}
+	if (platform::hasWindowSizeChanged()) {
+		int w, h;
+		platform::getWindowSize(&w, &h);
+		o.cols = h / o.fontHeight;
+		o.rows = w / o.fontWidth;
+		o.screen.resize(o.rows, o.cols);
+		shell.resize(o.rows, o.cols);
+	}
 
 	processInput();
 	shell.write(o.command.data(), o.command.size());
@@ -54,9 +66,13 @@ void closeGame() {
 }
 
 void startGame() {
-	o.fontSize = 18.0f;
-	shell.launch();
-	startRender();
+	o.cols = 25;
+	o.rows = 80;
+	startRender(); // loads the font, and sets o.fontWidth and o.fontHeight
+	o.screen.resize(o.rows, o.cols);
+	shell.launch(o.rows, o.cols);
+	platform::setWindowSize(o.rows * o.fontWidth, o.cols * o.fontHeight);
+	platform::changeVisibility(true);
 
 	o.flags = TermFlags::INPUT_ECHO | TermFlags::OUTPUT_ESCAPE_CODES | TermFlags::SHOW_CURSOR | TermFlags::CURSOR_BLINK;
 #ifdef _WIN32

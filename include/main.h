@@ -30,7 +30,6 @@ enum class ProcState : uint8_t {
 	SawCSIBracket,
 	SawOSCBracket,
 	SawOSCBracketAndESC,
-	SawCR,
 };
 
 struct InputProcessorState {
@@ -46,12 +45,13 @@ struct Data {
 	InputProcessorState procState;
 	std::string command;
 	StyledScreen screen;
-	float fontSize = 0;
+	float fontWidth, fontHeight = 0;
 	int cursorX = 0, cursorY = 0;
 	int rows = 0, cols = 0;
 	TermFlags flags;
 	int scrollbackOffset = 0;
 	ScreenState backupState;
+	bool needResize = false;
 };
 
 extern Data o;

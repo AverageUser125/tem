@@ -23,7 +23,7 @@ class Process {
   public:
 	Process() = default;
 	~Process();
-	void launch();
+	void launch(int rows, int cols);
 	void write(const char* data, size_t len);
 	// Call periodically to pump in new data from the process
 	void update();

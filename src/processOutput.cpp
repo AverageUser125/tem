@@ -228,18 +228,26 @@ void handleGraphicMode(std::string_view data, bool enable) {
 	std::cout << "GRAPHIC MODE: " << mode << " " << (enable ? "ENABLE" : "DISABLE") << "\n";
 	switch (mode) {
 	case 0: {
+		o.rows = 40;
+		o.cols = 25;
 		// 40 x 25 monochrome (text)
 		break;
 	}
 	case 1: {
+		o.rows = 40;
+		o.cols = 25;
 		// 40 x 25 color (text)
 		break;
 	}
 	case 2: {
+		o.rows = 80;
+		o.cols = 25;
 		// 80 x 25 monochrome (text)
 		break;
 	}
 	case 3: {
+		o.rows = 80;
+		o.cols = 25;
 		// 80 x 25 color (text)
 		break;
 	}
@@ -293,6 +301,7 @@ void handleGraphicMode(std::string_view data, bool enable) {
 		break;
 	}
 	}
+	o.needResize = true;
 }
 
 void handleDECPrivateMode(std::string_view data, bool enable) {
@@ -656,11 +665,11 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 				i++;
 				break;
 			}
-			case '\r': // Carriage Return
-				o.procState.state = ProcState::SawCR;
+			case '\r': {
+				o.cursorX = 0;
 				i++;
 				break;
-
+			}
 			case '\f': // Form Feed
 				o.screen.clear();
 				o.cursorX = 0;
@@ -687,6 +696,10 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 			case '\n': {
 				// Commit the current line and reset
 				o.screen.newLine();
+
+#ifdef __linux__
+				o.cursorX = 0;
+#endif
 				i++;
 				break;
 			}
@@ -717,16 +730,6 @@ void processPartialOutputSegment(const std::vector<char>& inputSegment) {
 				break;
 			}
 			}
-			break;
-
-		case ProcState::SawCR:
-			if (c == '\n') {
-			} else {
-				// Lone CR
-				o.cursorX = 0;
-				// Do not increment i, reprocess the current character
-			}
-			o.procState.state = ProcState::None;
 			break;
 
 		case ProcState::SawESC:

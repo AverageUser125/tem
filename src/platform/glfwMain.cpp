@@ -311,9 +311,12 @@ void windowFocusCallback(GLFWwindow* window, int focused) {
 	}
 }
 
+static bool hasBeinResized = false;
+
 void windowSizeCallback(GLFWwindow* window, int x, int y) {
 	platform::internal::resetInputsToZero();
 	glViewport(0, 0, x, y);
+	hasBeinResized = true;
 }
 
 void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos) {
@@ -366,6 +369,14 @@ void setWindowSize(int width, int height) {
 	glfwSetWindowSize(wind, width, height);
 }
 
+bool hasWindowSizeChanged() {
+	if (hasBeinResized) {
+		hasBeinResized = false;
+		return true;
+	}
+	return false;
+}
+
 // Should probably be in 'input.cpp' but that doesn't have access to the 'GLFWindow*'
 const char* getClipboard() {
 	return glfwGetClipboardString(wind);
@@ -391,6 +402,14 @@ bool mouseMoved() {
 	return mouseMovedFlag;
 }
 
+void changeVisibility(bool vis) {
+	if (vis) {
+		glfwShowWindow(wind);
+	} else {
+		glfwHideWindow(wind);
+	}
+}
+
 void setWindowTitle(const char* title) {
 	glfwSetWindowTitle(wind, title);
 }
@@ -413,10 +432,11 @@ int main() {
 #endif
 #endif
 
-	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_FALSE);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-	glfwWindowHint(GLFW_SAMPLES, 4);
+	permaAssert(glfwInit());
 
+	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_FALSE);
+	glfwWindowHint(GLFW_SAMPLES, 4);
+	glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // hide window on startup
 #ifdef __APPLE__
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, 1);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -424,12 +444,10 @@ int main() {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 #endif
 
-	int w = 80 * 18 / 2;
+	int w = 80 * 8;
 	int h = 25 * 18;
-	permaAssert(glfwInit());
 	wind = glfwCreateWindow(w, h, "tem", nullptr, nullptr);
 	permaAssert(wind != nullptr);
-	glfwSetWindowAttrib(wind, GLFW_RESIZABLE, GLFW_FALSE);
 	glfwMakeContextCurrent(wind);
 	glfwSwapInterval(1);
 

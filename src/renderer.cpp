@@ -259,10 +259,6 @@ static void uploadAtlasTexture() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 }
 
-// Internal constant from startRender
-static float charWidth = 0;
-static float charHeight = 0;
-
 void startRender() {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
@@ -276,7 +272,7 @@ void startRender() {
 	fclose(f);
 
 	permaAssertComment(stbtt_InitFont(&fontInfo, ttfBuffer, 0), "Failed to init font");
-	scale = stbtt_ScaleForPixelHeight(&fontInfo, o.fontSize);
+	scale = stbtt_ScaleForPixelHeight(&fontInfo, 18.0f);
 
 	stbtt_GetFontVMetrics(&fontInfo, &ascent, &descent, &lineGap);
 
@@ -299,14 +295,13 @@ void startRender() {
 	int glyphIndexSpace = stbtt_FindGlyphIndex(&fontInfo, ' ');
 	int advanceSpace, lsb;
 	stbtt_GetGlyphHMetrics(&fontInfo, glyphIndexSpace, &advanceSpace, &lsb);
-	charWidth = advanceSpace * scale;
-	charHeight = (float)(ascent - descent + lineGap) * scale;
+	o.fontWidth = advanceSpace * scale;
+	o.fontHeight = (float)(ascent - descent + lineGap) * scale;
 }
 
 void render(const std::vector<StyledLine>& screen, int screenW, int screenH) {
 	glViewport(0, 0, screenW, screenH);
 	glClear(GL_COLOR_BUFFER_BIT);
-	permaAssert(o.fontSize > 0.0f);
 
 	glUseProgram(shaderProgram);
 	defer(glUseProgram(0));
@@ -352,8 +347,8 @@ void render(const std::vector<StyledLine>& screen, int screenW, int screenH) {
 			if (stc.bg != TermColor::DefaultBackGround()) {
 				float bgX0 = penX;
 				float bgY0 = baselineY - ascent * scale;
-				float bgX1 = bgX0 + charWidth;
-				float bgY1 = bgY0 + charHeight;
+				float bgX1 = bgX0 + o.fontWidth;
+				float bgY1 = bgY0 + o.fontHeight;
 
 				vec4 bgColor = termColorToRGBA(stc.bg);
 				vertices.push_back({bgX0, bgY0, 0, 0, bgColor.r, bgColor.g, bgColor.b, bgColor.a});
@@ -413,7 +408,7 @@ void renderCursor(int cursorX, int cursorY, float deltaTime, int screenW, int sc
 	float y0 = lineCenterY - glyphHeight * 0.5f;
 	float y1 = y0 + glyphHeight;
 
-	float x0 = cursorX * charWidth + offsetX;
+	float x0 = cursorX * o.fontWidth + offsetX;
 	float x1 = x0 + cursorWidth;
 
 	// Texture coords for thin vertical slice of full block glyph

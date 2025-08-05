@@ -13,7 +13,7 @@
 namespace platform
 {
 
-void Process::launch() {
+void Process::launch(int rows, int cols) {
 	std::string_view cmd = "cmd.exe /Q /K";
 	HANDLE hInputRead = nullptr;
 	HANDLE hOutputWrite = nullptr;
@@ -22,7 +22,7 @@ void Process::launch() {
 	permaAssertComment(CreatePipe(&hInputRead, &hInputWrite, &sa, 0), "CreatePipe (in) failed");
 	permaAssertComment(CreatePipe(&hOutputRead, &hOutputWrite, &sa, 0), "CreatePipe (out) failed");
 
-	COORD size{80, 25};
+	COORD size{(SHORT)rows, (SHORT)cols};
 	HRESULT hr = CreatePseudoConsole(size, hInputRead, hOutputWrite, 0, &hPC);
 	CloseHandle(hInputRead);
 	CloseHandle(hOutputWrite);
@@ -127,9 +127,9 @@ void Process::resize(int columns, int rows) {
 
 namespace platform
 {
-void Process::launch() {
+void Process::launch(int rows, int cols) {
 	std::string_view cmd = "/bin/bash";
-	struct winsize ws = {24, 80, 0, 0}; // fake terminal size
+	struct winsize ws = {cols, rows - 1, 0, 0}; // fake terminal size
 	pid = forkpty(&masterFd, nullptr, nullptr, &ws);
 	permaAssertComment(pid != -1, "forkpty() failed");
 
